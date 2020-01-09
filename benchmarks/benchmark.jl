@@ -8,28 +8,18 @@ const LIBSVM_URL = "https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/bina
 ##################################################
 # Some parameters
 DATASET = "diabetes"
-#= DATASET = "covtype.libsvm.binary.bz2" =#
+DATASET = "covtype.libsvm.binary.bz2"
 LOAD_DATA     = true
-FIT_KNITRO    = true
+FIT_KNITRO    = false
 FIT_LBFGS     = false
 FIT_LIBLINEAR = false
-FIT_JOPTIM    = true
-FIT_JSOOPTIM  = true
-PENALTY       = 1e-4
+FIT_JOPTIM    = false
+FIT_JSOOPTIM  = false
+PENALTY       = 1e-5
 PENALTY_TYPE  = "l2"
 ##################################################
 
-function real_dataset(file)
-    res = @time LOT.parse_libsvm(file)
-    # Convert to dense matrix
-    X = LOT.to_dense(res)
-    # Some preprocessing
-    LOT.scale!(LOT.NormalScaler(), X)
-    y = copy(res.labels)
-    # Special preprocessing for covtype
-    y[y .== 2] .= -1
-    return X, y
-end
+include("dataset.jl")
 
 # If not here, download the file
 if !isfile(DATASET)
@@ -106,13 +96,13 @@ if FIT_JOPTIM && PENALTY_TYPE == "l2"
             push!(prob.logger.time, time())
             return nothing
         end
-        return (eval_f, eval_g)
+        return (eval_f, eval_g, prob)
     end
-    f, g! = jcall(X, y, penalty=penalty)
+    f, g!, prob = jcall(X, y, penalty=penalty)
     algo = BFGS(alphaguess=InitialHagerZhang(α0=1.0), linesearch=LineSearches.HagerZhang())
     #= algo = BFGS(alphaguess=InitialStatic(alpha=1.0), linesearch=LineSearches.MoreThuente()) =#
     #= algo = BFGS(alphaguess=InitialStatic(alpha=1.0), linesearch=LineSearches.StrongWolfe()) =#
-    options = Optim.Options(iterations=250, show_trace=true, g_tol=1e-5, allow_f_increases=true)
+    options = Optim.Options(iterations=250, store_trace=true, show_trace=true, g_tol=1e-5, allow_f_increases=true)
     res_joptim = Optim.optimize(f, g!, zeros(size(X, 2)), algo, options)
 end
 
