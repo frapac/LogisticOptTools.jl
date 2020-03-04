@@ -68,6 +68,18 @@ function (penalty::LinearizedL1Penalty{T})(x::Vector{T}) where T
     return T(0)
 end
 
+# L0 penalty
+# Write as:
+# \| w \|_0 \leq penalty.constant
+# with \|w\|_0 the l0 norm
+struct L0Penalty{T} <: AbstractPenalty
+    constant::T
+end
+
+# L0 penalty
+function (penalty::L0Penalty{T})(x::Vector{T}) where T
+    return T(0)
+end
 
 # TODO: Some work in progress
 # See: https://francisbach.com/the-eta-trick-reloaded-multiple-kernel-learning/

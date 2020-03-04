@@ -1,14 +1,18 @@
-"Wrapper of KNITRO for logistic regression."
+using KNITRO
+using LogisticOptTools
+const LOT = LogisticOptTools
 
 
 function callbackEvalF(kc, cb, evalRequest, evalResult, dat)
-    x = evalRequest.x
+    n = LOT.dim(dat.data)
+    x = evalRequest.x[1:n]
     evalResult.obj[1] = LOT.loss(x, dat)
     return 0
 end
 
 function callbackEvalG!(kc, cb, evalRequest, evalResult, dat)
-    ω = evalRequest.x
+    n = LOT.dim(dat.data)
+    ω = evalRequest.x[1:n]
     LOT.gradient!(evalResult.objGrad, ω, dat)
     return 0
 end
@@ -21,8 +25,8 @@ function callbackEvalHv!(kc, cb, evalRequest, evalResult, dat)
 end
 
 function callbackEvalH!(kc, cb, evalRequest, evalResult, dat)
-    x = evalRequest.x
-    vec = evalRequest.vec
+    n = LOT.dim(dat.data)
+    x = evalRequest.x[1:n]
     LOT.hess!(evalResult.hess, x, dat)
     return 0
 end
@@ -128,5 +132,95 @@ function knfit(dat::LOT.LogitData, x0, penalty::LOT.LinearizedL1Penalty, options
     nStatus = @time KNITRO.KN_solve(kc)
     w♯ = KNITRO.get_solution(kc)
     KNITRO.KN_free(kc)
+    return w♯, logit.logger
+end
+
+
+function knfit(dat::LOT.LogitData, x0,
+               penalty::LOT.L0Penalty,
+               options,
+               big_m=5.0)
+    qcqp_formulation = false
+    n_features = LOT.dim(dat)
+
+    kc = KNITRO.KN_new()
+
+    # Regularization parameters
+    index_w = KNITRO.KN_add_vars(kc, n_features)
+    KNITRO.KN_set_var_primal_init_values(kc, index_w, x0)
+
+    # Add callbacks
+    cb = KNITRO.KN_add_objective_callback(kc, callbackEvalF)
+    KNITRO.KN_set_cb_grad(kc, cb, callbackEvalG!)
+
+    # Parse options
+    for val in options
+        optval = string(val.first)
+        if optval == "trace" && val.second == true
+            KNITRO.KN_set_newpt_callback(kc, callbackNewPoint)
+            continue
+        end
+        if optval == "hessopt" && val.second == 5
+            KNITRO.KN_set_cb_hess(kc, cb, 0, callbackEvalHv!)
+            KNITRO.KN_set_param(kc, "algorithm", 2)
+        elseif optval == "hessopt" && val.second == 1
+            KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalH!)
+        else
+            KNITRO.KN_set_param(kc, optval, val.second)
+        end
+    end
+
+    # Add constraint \|w\|_0 <= k
+    # Formulate with binary variables z:
+    index_z = KNITRO.KN_add_vars(kc, n_features)
+    # Flag z as binary
+    KNITRO.KN_set_var_type.(Ref(kc),
+                            index_z,
+                            fill(KNITRO.KN_VARTYPE_BINARY, n_features))
+    KNITRO.KN_set_var_upbnds(kc, index_z, fill(1.0, n_features))
+    KNITRO.KN_set_var_lobnds(kc, index_z, fill(0.0, n_features))
+
+    if qcqp_formulation
+        # Add constraint w (1 - z) = 0
+        comp_cons = KNITRO.KN_add_cons(kc, n_features)
+        KNITRO.KN_set_con_eqbnds(kc, comp_cons, fill(0.0, n_features))
+        KNITRO.KN_add_con_linear_struct(kc, comp_cons, index_w, fill(1.0, n_features))
+        KNITRO.KN_add_con_quadratic_struct(kc, comp_cons,
+                                    index_w,
+                                    index_z,
+                                    fill(-1.0, n_features))
+    else
+        # Add Big-M formulation
+        comp_cons = KNITRO.KN_add_cons(kc, 2 * n_features)
+        KNITRO.KN_set_con_upbnds(kc, comp_cons, fill(0.0, 2* n_features))
+        # w <= M z
+        up_cons = comp_cons[1:n_features]
+        KNITRO.KN_add_con_linear_struct(kc, up_cons, index_w, fill(1.0, n_features))
+        KNITRO.KN_add_con_linear_struct(kc, up_cons, index_z, fill(-big_m, n_features))
+
+        # - M z <= w
+        lo_cons = comp_cons[n_features+1:end]
+        KNITRO.KN_add_con_linear_struct(kc, lo_cons, index_w, fill(-1.0, n_features))
+        KNITRO.KN_add_con_linear_struct(kc, lo_cons, index_z, fill(-big_m, n_features))
+    end
+
+    # Add constraint sum z_i <= k
+    l0_cons = KNITRO.KN_add_cons(kc, 1)
+    KNITRO.KN_set_con_upbnds(kc, l0_cons, [penalty.constant])
+    KNITRO.KN_add_con_linear_struct(kc,
+                                    repeat(l0_cons, n_features),
+                                    index_z,
+                                    fill(1.0, n_features))
+
+    logit = LOT.GeneralizedLinearModel(dat, penalty, LOT.Tracer{Float64}())
+    KNITRO.KN_set_cb_user_params(kc, cb, logit)
+
+    # Resolve!
+    nStatus = @time KNITRO.KN_solve(kc)
+    # Get optimal solution
+    w♯ = KNITRO.get_solution(kc)
+    # Free Knitro instance
+    KNITRO.KN_free(kc)
+
     return w♯, logit.logger
 end
