@@ -1,23 +1,44 @@
 # Define logistic loss
+# TODO
+# [ ] Memoize expit(-yₚ[i] y[i])
 
 import Base: length
 
 # Define data for logistic regression problem
-struct LogitData{T <: Real} <: AbstractDataset{T}
+mutable struct LogitData{T <: Real} <: AbstractDataset{T}
     X::Array{T, 2}
     y::Vector{T}
     y_pred::Vector{T}
+    hash_x::UInt64
 end
 
 function LogitData(X::Array{T, 2}, y::Vector{T}) where T
     @assert size(X, 1) == size(y, 1)
-    return LogitData(X, y, zeros(T, size(y, 1)))
+    return LogitData(X, y, zeros(T, size(y, 1)), UInt64(0))
 end
+
+function LogitData(libsmv_file::String; scale_data=false)
+    dataset = parse_libsvm(libsmv_file)
+    # Convert to dense matrix
+    X = to_dense(dataset)
+    if scale_data
+        scale!(LOT.NormalScaler(), X)
+    end
+    y = dataset.labels
+    # Special preprocessing for covtype
+    format_label!(y)
+    return LogitData(X, y, zeros(size(y, 1)), UInt64(0))
+end
+
 length(dat::LogitData) = length(dat.y)
 dim(dat) = size(dat.X, 2)
 
 function _update_ypred!(data::LogitData{T}, x::AbstractVector{T}) where T
-    mul!(data.y_pred, data.X, x)
+    new_hash = hash(x)
+    if new_hash != data.hash_x
+        mul!(data.y_pred, data.X, x)
+        data.hash_x = new_hash
+    end
 end
 
 """
@@ -41,7 +62,7 @@ end
 Compute gradient of logistic loss for given vector parameter `ω ∈  R^p`.
 
 ## Complexity
-O(n x p)
+O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
@@ -62,7 +83,7 @@ end
 Compute Hessian of logistic loss for given vector parameter `ω ∈  R^p`.
 
 ## Complexity
-O(n x p * (p-1) /2)
+O(n * p * (p-1) /2)
 
 """
 function hess!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T

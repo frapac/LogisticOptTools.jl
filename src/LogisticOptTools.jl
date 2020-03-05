@@ -13,5 +13,6 @@ include("penalty.jl")
 
 include("model.jl")
 include("logistic.jl")
+include("sparse_logistic.jl")
 
 end # module
