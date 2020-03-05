@@ -18,7 +18,8 @@ function callbackEvalG!(kc, cb, evalRequest, evalResult, dat)
 end
 
 function callbackEvalHv!(kc, cb, evalRequest, evalResult, dat)
-    h = evalRequest.x
+    n = LOT.dim(dat.data)
+    h = evalRequest.x[1:n]
     vec = evalRequest.vec
     LOT.hessvec!(evalResult.hessVec, h, vec, dat)
     return 0
@@ -43,7 +44,7 @@ function callbackNewPoint(kc, x, lambda_, m)
 end
 
 knfit(X, y; x0=zeros(size(X, 2)), penalty=LOT.L2Penalty(0.0), options...) = knfit(LOT.LogitData(X, y), x0, penalty, options)
-function knfit(dat::LOT.LogitData, x0::AbstractVector, penalty::P, options) where P <: Union{LOT.L2Penalty, LOT.L1Penalty}
+function knfit(dat::LOT.AbstractDataset, x0::AbstractVector, penalty::P; options...) where P <: Union{LOT.L2Penalty, LOT.L1Penalty}
     kc = KNITRO.KN_new()
     KNITRO.KN_add_vars(kc, LOT.dim(dat))
     KNITRO.KN_set_var_primal_init_values(kc, x0)
@@ -57,7 +58,7 @@ function knfit(dat::LOT.LogitData, x0::AbstractVector, penalty::P, options) wher
             continue
         end
         if optval == "hessopt" && val.second == 5
-            KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalHv!)
+            KNITRO.KN_set_cb_hess(kc, cb, 0, callbackEvalHv!)
             KNITRO.KN_set_param(kc, "algorithm", 2)
         elseif optval == "hessopt" && val.second == 1
             KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalH!)
@@ -74,7 +75,7 @@ function knfit(dat::LOT.LogitData, x0::AbstractVector, penalty::P, options) wher
     return w_opt, logit.logger
 end
 
-function knfit(dat::LOT.LogitData, x0, penalty::LOT.LinearizedL1Penalty, options)
+function knfit(dat::LOT.AbstractDataset, x0, penalty::LOT.LinearizedL1Penalty, options)
     n_features = LOT.dim(dat)
     kc = KNITRO.KN_new()
     KNITRO.KN_add_vars(kc, 2 * LOT.dim(dat))
@@ -95,10 +96,23 @@ function knfit(dat::LOT.LogitData, x0, penalty::LOT.LinearizedL1Penalty, options
             continue
         end
         if optval == "hessopt" && val.second == 5
-            KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalHv!)
+            KNITRO.KN_set_cb_hess(kc, cb, 0, callbackEvalHv!)
             KNITRO.KN_set_param(kc, "algorithm", 2)
         elseif optval == "hessopt" && val.second == 1
-            KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalH!)
+            # Define Hessian sparsity pattern
+            xHess1 = Cint[]
+            xHess2 = Cint[]
+            for i in 1:n_features
+                for j in i:n_features
+                    push!(xHess1, i-1)
+                    push!(xHess2, j-1)
+                end
+            end
+            nnzh = length(xHess2)
+            println(xHess2)
+            KNITRO.KN_set_cb_hess(kc, cb, nnzh, callbackEvalH!,
+                                  hessIndexVars1=xHess1,
+                                  hessIndexVars2=xHess2)
         end
         KNITRO.KN_set_param(kc, optval, val.second)
     end
@@ -136,7 +150,7 @@ function knfit(dat::LOT.LogitData, x0, penalty::LOT.LinearizedL1Penalty, options
 end
 
 
-function knfit(dat::LOT.LogitData, x0,
+function knfit(dat::LOT.AbstractDataset, x0,
                penalty::LOT.L0Penalty,
                options,
                big_m=5.0)
@@ -164,7 +178,19 @@ function knfit(dat::LOT.LogitData, x0,
             KNITRO.KN_set_cb_hess(kc, cb, 0, callbackEvalHv!)
             KNITRO.KN_set_param(kc, "algorithm", 2)
         elseif optval == "hessopt" && val.second == 1
-            KNITRO.KN_set_cb_hess(kc, cb, KNITRO.KN_DENSE_ROWMAJOR, callbackEvalH!)
+            # Define Hessian sparsity pattern
+            xHess1 = Cint[]
+            xHess2 = Cint[]
+            for i in 1:n_features
+                for j in i:n_features
+                    push!(xHess1, i-1)
+                    push!(xHess2, j-1)
+                end
+            end
+            nnzh = length(xHess2)
+            KNITRO.KN_set_cb_hess(kc, cb, nnzh, callbackEvalH!,
+                                  hessIndexVars1=xHess1,
+                                  hessIndexVars2=xHess2)
         else
             KNITRO.KN_set_param(kc, optval, val.second)
         end
