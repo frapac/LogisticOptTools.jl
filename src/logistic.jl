@@ -22,7 +22,7 @@ function LogitData(libsmv_file::String; scale_data=false)
     # Convert to dense matrix
     X = to_dense(dataset)
     if scale_data
-        scale!(LOT.NormalScaler(), X)
+        scale!(NormalScaler(), X)
     end
     y = dataset.labels
     # Special preprocessing for covtype

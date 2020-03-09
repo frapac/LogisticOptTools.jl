@@ -8,7 +8,7 @@ gradient!(g, x, penalty::AbstractPenalty) = nothing
 hess!(hess, x, penalty::AbstractPenalty) = nothing
 
 "Compute inplace Hessian vector product of `penalty`."
-hessvec!(hessvec, x, vec, penalty::AbstractPenalty) = nothing
+hessvec!(hv, x, vec, penalty::AbstractPenalty) = nothing
 
 
 # L2 penalty
@@ -34,9 +34,9 @@ function hess!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     return nothing
 end
 
-function hessvec!(hessvec::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L2Penalty{T}) where T
+function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L2Penalty{T}) where T
     @inbounds for i in 1:length(x)
-        hessvec[i] += T(2) * penalty.constant * vec[i]
+        hv[i] += T(2) * penalty.constant * vec[i]
     end
     return nothing
 end
@@ -74,11 +74,24 @@ end
 # with \|w\|_0 the l0 norm
 struct L0Penalty{T} <: AbstractPenalty
     constant::T
+    inner_penalty::AbstractPenalty
 end
+
+L0Penalty(c::T) where T = L0Penalty(c, L2Penalty(T(0.0)))
+L0Penalty(c::T, λ::T) where T = L0Penalty(c, L2Penalty(λ))
 
 # L0 penalty
 function (penalty::L0Penalty{T})(x::Vector{T}) where T
-    return T(0)
+    return penalty.inner_penalty(x)
+end
+function gradient!(g::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
+    gradient!(g, x, penalty.inner_penalty)
+end
+function hess!(hess::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
+    hess!(hess, x, penalty.inner_penalty)
+end
+function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L0Penalty{T}) where T
+    hessvec!(hv, x, vec, penalty.inner_penalty)
 end
 
 # TODO: Some work in progress

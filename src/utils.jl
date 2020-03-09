@@ -1,8 +1,6 @@
 
-@inline function expit(t::T) where T
+function expit(t::T) where T
     return one(T) / (one(T) + exp(-t))
-    # Another version of expit:
-    #= return 0.5 + 0.5 * tanh(0.5 * t) =#
 end
 
 # A numerically robust function to evaluate -log(1 + exp(-t))
@@ -19,6 +17,17 @@ function log1pexp(t::T) where T
     end
 end
 
+"Compute Fenchel transform of f(x) = log(1 + exp(-x))."
+function logloss(λ::T) where T <: Real
+    # TODO: numerically robust version
+    if λ ∈ [0.0, -1.0]
+        return 0.0
+    elseif -1.0 < λ < 0.0
+        return (1.0 + λ) * log(1.0 + λ) - λ * log(-λ)
+    else
+        return Inf
+    end
+end
 
 abstract type AbstractScaler end
 
@@ -39,7 +48,7 @@ x_j^+ =  (x_j - μ_j) / σ_j
 """
 struct NormalScaler <: AbstractScaler end
 
-function scale!(::NormalScaler, X::AbstractArray{T, 2}) where T
+function scale!(::NormalScaler, X::Array{T, 2}) where T
     n, d = size(X)
     μ = mean(X, dims=1)
     σ = std(X, dims=1)

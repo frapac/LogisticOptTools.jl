@@ -1,3 +1,4 @@
+push!(LOAD_PATH, "..")
 
 using Test, Random
 using Statistics, SparseArrays, LinearAlgebra
@@ -94,7 +95,7 @@ end
     end
 end
 
-@testset "Fitting" begin
+@testset "Fitting logistic regression (primal)" begin
     # Load dataset
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
     X1 = LOT.to_dense(svm_data)
@@ -110,5 +111,29 @@ end
         options = Optim.Options(iterations=250, g_tol=1e-5)
         res_joptim = Optim.optimize(f, g!, zeros(LOT.dim(data)), algo, options)
         Optim.converged(res_joptim)
+    end
+end
+
+@testset "Dual model" begin
+    svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
+    X = LOT.to_dense(svm_data)
+    y = svm_data.labels
+    data = LOT.DualLogitData(X, y)
+    n = length(data)
+    @testset "Dual Logit" begin
+        λ = zeros(n)
+        @test LOT.loss(λ, data) == 0.0
+        λ = -data.y
+        @test LOT.loss(λ, data) == 0.0
+        g = zeros(n)
+        LOT.gradient!(g, λ, data)
+    end
+    @testset "Dual GLM" begin
+        penalty = LOT.L2Penalty(1.0)
+        glm = LOT.DualGeneralizedLinearModel(data, penalty)
+        λ = zeros(n)
+        @test LOT.loss(λ, glm) == 0.0
+        g = zeros(n)
+        LOT.gradient!(g, λ, glm)
     end
 end
