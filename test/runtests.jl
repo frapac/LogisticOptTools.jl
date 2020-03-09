@@ -20,7 +20,7 @@ function fake_dataset(n_samples=100, n_features=10)
     return X, y
 end
 
-function wrap_optim(dat::LOT.LogitData, penalty::LOT.AbstractPenalty)
+function wrap_optim(dat::LOT.AbstractDataset, penalty::LOT.AbstractPenalty)
     prob = LOT.GeneralizedLinearModel(dat, penalty, LOT.Tracer{Float64}())
     eval_f = x -> LOT.loss(x, prob)
     function eval_g(g, x)
@@ -46,6 +46,16 @@ end
         LOT.scale!(LOT.NormalScaler(), dataset)
         @test mean(dataset, dims=1) ≈ zeros(1, m) atol=1e-8
         @test std(dataset, dims=1) ≈ ones(1, m)
+
+        y1 = [-2, 2, 2, -2]
+        LOT.format_label!(y1)
+        @test isequal(y1, [-1, 1, 1, -1])
+        y2 = [-1, 3, 3]
+        LOT.format_label!(y2)
+        @test isequal(y2, [-1, 1, 1])
+        y3 = [-1, 0, 0]
+        LOT.format_label!(y3)
+        @test isequal(y3, [-1, 1, 1])
     end
 end
 
@@ -73,9 +83,11 @@ end
     g = zeros(n)
     vec = zeros(n)
     hess = zeros(div(n * (n-1), 2))
-    for penalty in [LOT.L2Penalty(λ), LOT.L1Penalty(λ)]
+    for penalty in [LOT.L2Penalty(λ),
+                    LOT.L1Penalty(λ),
+                    LOT.LinearizedL1Penalty(λ),
+                    LOT.L0Penalty(1.0)]
         @test penalty(x0) == 0.0
-        @test penalty(x1) == penalty.constant * sum(n)
         LOT.gradient!(g, x0, penalty)
         LOT.hess!(hess, x0, penalty)
         LOT.hessvec!(g, x0, vec, penalty)
@@ -85,9 +97,10 @@ end
 @testset "Fitting" begin
     # Load dataset
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
-    X = LOT.to_dense(svm_data)
+    X1 = LOT.to_dense(svm_data)
+    X2 = LOT.to_sparse(svm_data)
     y = svm_data.labels
-    for glm in [LOT.LogitData]
+    for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
         data = glm(X, y)
         @test LOT.length(data) == length(y)
         @test LOT.dim(data) == size(X, 2)
