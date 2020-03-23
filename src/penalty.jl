@@ -21,14 +21,19 @@ end
 (penalty::L2Penalty{T})(x::Vector{T}) where T = penalty.constant * dot(x, x)
 
 function gradient!(g::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
-    @inbounds for i in 1:length(x)
+    # Sanity check
+    n = length(x)
+    @assert length(g) == n
+    @inbounds for i in 1:n
         g[i] += T(2) * penalty.constant * x[i]
     end
     return nothing
 end
 
 function hess!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+    # Sanity check
     n = length(x)
+    @assert length(hess) == n * (n + 1) / 2
     count = 1
     for i in 1:n
         @inbounds hess[count] += 2.0 * penalty.constant
@@ -39,7 +44,9 @@ function hess!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
 end
 
 function diaghess!(dh::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+    # Sanity check
     n = length(x)
+    @assert length(dh) == n
     for i in 1:n
         @inbounds dh[i] += 2.0 * penalty.constant
     end
@@ -47,7 +54,9 @@ function diaghess!(dh::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
 end
 
 function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L2Penalty{T}) where T
-    @inbounds for i in 1:length(x)
+    n = length(x)
+    @assert length(hv) == length(vec) == n
+    @inbounds for i in 1:n
         hv[i] += T(2) * penalty.constant * vec[i]
     end
     return nothing

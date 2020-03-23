@@ -49,6 +49,8 @@ O(n)
 
 """
 function loss(ω::AbstractVector{T}, data::LogitData{T}) where T
+    # Sanity check
+    @assert length(ω) == dim(data)
     # Compute dot product
     _update_ypred!(data, ω)
     res = zero(T)
@@ -66,6 +68,9 @@ O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+    # Sanity check
+    @assert length(ω) ==  length(grad) == dim(data)
+    # Reset grad
     fill!(grad, zero(T))
     # Compute dot product
     _update_ypred!(data, ω)
@@ -87,11 +92,15 @@ O(n * p * (p-1) /2)
 
 """
 function hess!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+    # Sanity check
+    p = dim(data)
+    @assert length(ω) == p
+    @assert length(hess) == p * (p + 1) / 2
+    # Reset Hessian
     fill!(hess, zero(T))
     # Compute dot product
     _update_ypred!(data, ω)
     n = length(data)
-    p = dim(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -115,10 +124,14 @@ O(n * p)
 
 """
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+    # Sanity check
+    p = dim(data)
+    @assert length(ω) == length(diagh) == p
+    # Reset diagh
     fill!(diagh, zero(T))
     # Compute dot product
     _update_ypred!(data, ω)
-    n, p = length(data), dim(data)
+    n = length(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -140,10 +153,13 @@ O(n x 2 x p)
 """
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                   vec::AbstractVector{T}, data::LogitData{T}) where T
+    # Sanity check
+    p = dim(data)
+    @assert length(ω) == length(vec) == length(hessvec) == p
+    # Reset diagh
     fill!(hessvec, zero(T))
     # Compute dot product
     _update_ypred!(data, ω)
-    p = dim(data)
     invn = one(T) / length(data)
     @inbounds for i in 1:length(data)
         σz = expit(-data.y_pred[i] * data.y[i])
