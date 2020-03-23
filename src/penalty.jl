@@ -7,6 +7,9 @@ gradient!(g, x, penalty::AbstractPenalty) = nothing
 "Compute inplace Hessian of `penalty`."
 hess!(hess, x, penalty::AbstractPenalty) = nothing
 
+"Compute inplace diagonal for Hessian of `penalty`."
+diaghess!(dh, x, penalty::AbstractPenalty) = nothing
+
 "Compute inplace Hessian vector product of `penalty`."
 hessvec!(hv, x, vec, penalty::AbstractPenalty) = nothing
 
@@ -29,7 +32,16 @@ function hess!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     count = 1
     for i in 1:n
         @inbounds hess[count] += 2.0 * penalty.constant
+        # Fill only terms corresponding to diagonal
         count += n - i + 1
+    end
+    return nothing
+end
+
+function diaghess!(dh::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+    n = length(x)
+    for i in 1:n
+        @inbounds dh[i] += 2.0 * penalty.constant
     end
     return nothing
 end
@@ -42,7 +54,6 @@ function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L2Penalt
 end
 
 
-# L1 penalty
 abstract type AbstractL1Penalty <: AbstractPenalty end
 
 # Vanilla L1 penalty

@@ -108,6 +108,29 @@ function hess!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T
 end
 
 """
+Compute diagonal of Hessian for given vector parameter `ω ∈  R^p`.
+
+## Complexity
+O(n * p)
+
+"""
+function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+    fill!(diagh, zero(T))
+    # Compute dot product
+    _update_ypred!(data, ω)
+    n, p = length(data), dim(data)
+    invn = one(T) / n
+    @inbounds for i in 1:n
+        σz = expit(-data.y_pred[i] * data.y[i])
+        cst = invn * σz * (one(T) - σz)
+        for j in 1:p
+            @inbounds diagh[j] += cst * data.X[i, j] * data.X[i, j]
+        end
+    end
+    return nothing
+end
+
+"""
 Compute Hessian-vector product of logistic loss for given vector
 parameter `ω ∈  R^p`.
 

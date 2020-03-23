@@ -76,43 +76,71 @@ end
     end
 end
 
-@testset "Penalty" begin
-    n = 10
-    λ = 1.0
+@testset "Primal model" begin
+    # Test dataset
+    svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
+    X = LOT.to_dense(svm_data)
+    y = svm_data.labels
+    data = LOT.LogitData(X, y)
+    # Input dimension
+    n = LOT.dim(data)
+    # Initial point
     x0 = zeros(n)
-    x1 = ones(n)
-    g = zeros(n)
+    # vector for hess-vec product
     vec = zeros(n)
-    hess = zeros(div(n * (n-1), 2))
-    for penalty in [LOT.L2Penalty(λ),
-                    LOT.L1Penalty(λ),
-                    LOT.LinearizedL1Penalty(λ),
-                    LOT.L0Penalty(1.0)]
-        @test penalty(x0) == 0.0
-        LOT.gradient!(g, x0, penalty)
-        LOT.hess!(hess, x0, penalty)
-        LOT.hessvec!(g, x0, vec, penalty)
+    # Allocate vectors for gradient, Hessian and diag-Hessian
+    g = zeros(n)
+    hess = zeros(div(n * (n+1), 2))
+    diagh = zeros(n)
+
+    @testset "Primal logistic regression" begin
+        @test LOT.loss(x0, data) ≈ -LOT.log1pexp(0.0)
+        LOT.gradient!(g, x0, data)
+        LOT.hess!(hess, x0, data)
+        LOT.hessvec!(g, x0, vec, data)
+        LOT.diaghess!(diagh, x0, data)
+    end
+
+    @testset "Penalty" begin
+        # Penalty parameter
+        fill!(g, 0.0)
+        fill!(hess, 0.0)
+        fill!(diagh, 0.0)
+        λ = 1.0
+        for penalty in [LOT.L2Penalty(λ),
+                        LOT.L1Penalty(λ),
+                        LOT.LinearizedL1Penalty(λ),
+                        LOT.L0Penalty(1.0)]
+            @test penalty(x0) == 0.0
+            LOT.gradient!(g, x0, penalty)
+            @test all(g .== 0.0)
+            LOT.hess!(hess, x0, penalty)
+            LOT.hessvec!(g, x0, vec, penalty)
+            LOT.diaghess!(diagh, x0, penalty)
+            @test all(diagh .== 2.0)
+        end
+    end
+
+    @testset "Fitting logistic regression (primal)" begin
+        # Load dataset
+        svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
+        X1 = LOT.to_dense(svm_data)
+        X2 = LOT.to_sparse(svm_data)
+        y = svm_data.labels
+        for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
+            data = glm(X, y)
+            @test LOT.length(data) == length(y)
+            @test LOT.dim(data) == size(X, 2)
+            # Build callbacks
+            f, g! = wrap_optim(data, LOT.L2Penalty(0.0))
+            algo = BFGS()
+            options = Optim.Options(iterations=250, g_tol=1e-5)
+            res_joptim = Optim.optimize(f, g!, zeros(LOT.dim(data)), algo, options)
+            Optim.converged(res_joptim)
+        end
     end
 end
 
-@testset "Fitting logistic regression (primal)" begin
-    # Load dataset
-    svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
-    X1 = LOT.to_dense(svm_data)
-    X2 = LOT.to_sparse(svm_data)
-    y = svm_data.labels
-    for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
-        data = glm(X, y)
-        @test LOT.length(data) == length(y)
-        @test LOT.dim(data) == size(X, 2)
-        # Build callbacks
-        f, g! = wrap_optim(data, LOT.L2Penalty(0.0))
-        algo = BFGS()
-        options = Optim.Options(iterations=250, g_tol=1e-5)
-        res_joptim = Optim.optimize(f, g!, zeros(LOT.dim(data)), algo, options)
-        Optim.converged(res_joptim)
-    end
-end
 
 @testset "Dual model" begin
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
