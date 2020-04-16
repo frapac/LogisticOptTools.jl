@@ -13,9 +13,9 @@ include("io/libsvm_parser.jl")
 include("loss.jl")
 include("penalty.jl")
 
-include("logistic.jl")
-include("sparse_logistic.jl")
-include("dual_logistic.jl")
+include("logistic/dense_logistic.jl")
+include("logistic/sparse_logistic.jl")
+include("logistic/dual_logistic.jl")
 
 include("model.jl")
 
