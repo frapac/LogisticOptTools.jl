@@ -1,4 +1,3 @@
-push!(LOAD_PATH, "..")
 
 using Test, Random
 using Statistics, SparseArrays, LinearAlgebra
@@ -6,12 +5,11 @@ using Optim
 using LogisticOptTools
 
 const LOT = LogisticOptTools
-
-Random.seed!(2713)
 const SVM_DATASET = joinpath(@__DIR__, "diabetes.txt")
+Random.seed!(2713)
+
 
 function fake_dataset(n_samples=100, n_features=10)
-    n_samples, n_features = 10^4, 10^3
     X = randn(n_samples, n_features)
     w = randn(n_features)
     y = sign.(X * w)
@@ -148,6 +146,7 @@ end
     y = svm_data.labels
     data = LOT.DualLogitData(X, y)
     n = length(data)
+    penalty = LOT.L2Penalty(1.0)
     @testset "Dual Logit" begin
         λ = zeros(n)
         @test LOT.loss(λ, data) == 0.0
@@ -157,7 +156,6 @@ end
         LOT.gradient!(g, λ, data)
     end
     @testset "Dual GLM" begin
-        penalty = LOT.L2Penalty(1.0)
         glm = LOT.DualGeneralizedLinearModel(data, penalty)
         λ = zeros(n)
         @test LOT.loss(λ, glm) == 0.0
