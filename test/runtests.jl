@@ -79,9 +79,22 @@ end
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
     X = LOT.to_dense(svm_data)
     y = svm_data.labels
+
+    @testset "Constructor" begin
+        d1 = @inferred LOT.LogitData(X, y)
+        @test sort(unique(d1.y)) == [-1.0, 1.0]
+        d2 = @inferred LOT.LogitData(SVM_DATASET, scale_data=false)
+        @test sort(unique(d2.y)) == [-1.0, 1.0]
+        # Import should be the same when data are not scaled.
+        @test hash(d1.X) == hash(d2.X)
+        d3 = @inferred LOT.LogitData(SVM_DATASET, scale_data=true)
+        @test sort(unique(d3.y)) == [-1.0, 1.0]
+    end
+
     data = LOT.LogitData(X, y)
     # Input dimension
     n = LOT.dim(data)
+    @test isa(n, Int)
     # Initial point
     x0 = zeros(n)
     # vector for hess-vec product
@@ -125,6 +138,8 @@ end
         X1 = LOT.to_dense(svm_data)
         X2 = LOT.to_sparse(svm_data)
         y = svm_data.labels
+        # Solution when data are scaled
+        solution = 0.6084979240046
         for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
             data = glm(X, y)
             @test LOT.length(data) == length(y)
@@ -134,11 +149,11 @@ end
             algo = BFGS()
             options = Optim.Options(iterations=250, g_tol=1e-5)
             res_joptim = Optim.optimize(f, g!, zeros(LOT.dim(data)), algo, options)
+            @test res_joptim.minimum ≈ solution
             Optim.converged(res_joptim)
         end
     end
 end
-
 
 @testset "Dual model" begin
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
