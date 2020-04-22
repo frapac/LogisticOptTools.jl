@@ -1,6 +1,12 @@
 
+# Numerically stable expit
 function expit(t::T) where T
-    return one(T) / (one(T) + exp(-t))
+    if t >= 0.0
+        return one(T) / (one(T) + exp(-t))
+    else
+        e_t = exp(t)
+        return e_t / (one(T) + e_t)
+    end
 end
 
 # A numerically robust function to evaluate -log(1 + exp(-t))
