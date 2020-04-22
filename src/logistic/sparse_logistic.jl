@@ -45,6 +45,8 @@ O(n)
 
 """
 function loss(ω::AbstractVector{T}, data::SparseLogitData{T}) where T
+    # Sanity check
+    @assert length(ω) == nfeatures(data)
     res = zero(T)
     n = ndata(data)
     # Could not take into account sparsity pattern here
@@ -62,6 +64,8 @@ O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::SparseLogitData{T}) where T
+    # Sanity check
+    @assert length(ω) == length(grad) == nfeatures(data)
     invn = -one(T) / ndata(data)
     rowsv = rowvals(data.X)
     xvals = nonzeros(data.X)
@@ -118,6 +122,7 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                   vec::AbstractVector{T}, data::SparseLogitData{T}) where T
     p = nfeatures(data)
     n = ndata(data)
+    @assert length(ω) == length(vec) == length(hessvec) == p
     rowsv = rowvals(data.X)
     xvals = nonzeros(data.X)
     invn = one(T) / n
