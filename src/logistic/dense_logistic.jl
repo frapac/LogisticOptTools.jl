@@ -5,16 +5,19 @@
 import Base: length
 
 # Define data for logistic regression problem
-mutable struct LogitData{T <: Real} <: AbstractDataset{T}
+struct LogitData{T <: Real} <: AbstractDataset{T}
+    # Features x_ij
     X::Array{T, 2}
+    # Labels y_i
     y::Vector{T}
+    # Current prediction. Should be equal to dot(X, p) with p
+    # current parameters.
     y_pred::Vector{T}
-    hash_x::UInt64
 end
 
 function LogitData(X::Array{T, 2}, y::Vector{T}) where T
     @assert size(X, 1) == size(y, 1)
-    return LogitData(X, y, zeros(T, size(y, 1)), UInt64(0))
+    return LogitData(X, y, zeros(T, size(y, 1)))
 end
 
 function LogitData(libsmv_file::String; scale_data=false)
@@ -27,18 +30,15 @@ function LogitData(libsmv_file::String; scale_data=false)
     y = dataset.labels
     # Special preprocessing for covtype
     format_label!(y)
-    return LogitData(X, y, zeros(size(y, 1)), UInt64(0))
+    return LogitData(X, y, zeros(size(y, 1)))
 end
 
-length(dat::LogitData) = length(dat.y)
-dim(dat) = size(dat.X, 2)
+nfeatures(dat::LogitData) = size(dat.X, 2)
+ndata(dat) = length(dat.y)
 
-function _update_ypred!(data::LogitData{T}, x::AbstractVector{T}) where T
-    new_hash = hash(x)
-    if new_hash != data.hash_x
-        mul!(data.y_pred, data.X, x)
-        data.hash_x = new_hash
-    end
+function predict!(data::LogitData{T}, x::AbstractVector{T}) where T
+    mul!(data.y_pred, data.X, x)
+    return
 end
 
 """
@@ -50,14 +50,13 @@ O(n)
 """
 function loss(ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
-    @assert length(ω) == dim(data)
+    @assert length(ω) == nfeatures(data)
     # Compute dot product
-    _update_ypred!(data, ω)
     res = zero(T)
-    @inbounds for i in 1:length(data)
+    @inbounds for i in 1:ndata(data)
         res += loss(Logit(), data.y_pred[i], data.y[i])
     end
-    return one(T) / length(data) * res
+    return one(T) / ndata(data) * res
 end
 
 """
@@ -69,15 +68,13 @@ O(n * p)
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
-    @assert length(ω) ==  length(grad) == dim(data)
-    # Reset grad
-    fill!(grad, zero(T))
-    # Compute dot product
-    _update_ypred!(data, ω)
-    invn = -one(T) / length(data)
-    @inbounds for j in 1:length(data)
+    @assert length(ω) == length(grad) == nfeatures(data)
+    nfeats = nfeatures(data)
+    n = ndata(data)
+    invn = -one(T) / n
+    @inbounds for j in 1:n
         tmp = invn * data.y[j] * expit(-data.y_pred[j] * data.y[j])
-        @inbounds for i in 1:length(ω)
+        @inbounds for i in 1:nfeats
             grad[i] += tmp * data.X[j, i]
         end
     end
@@ -91,16 +88,12 @@ Compute Hessian of logistic loss for given vector parameter `ω ∈  R^p`.
 O(n * p * (p-1) /2)
 
 """
-function hess!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
-    p = dim(data)
+    p = nfeatures(data)
+    n = ndata(data)
     @assert length(ω) == p
     @assert length(hess) == p * (p + 1) / 2
-    # Reset Hessian
-    fill!(hess, zero(T))
-    # Compute dot product
-    _update_ypred!(data, ω)
-    n = length(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -125,13 +118,9 @@ O(n * p)
 """
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
-    p = dim(data)
+    p = nfeatures(data)
+    n = ndata(data)
     @assert length(ω) == length(diagh) == p
-    # Reset diagh
-    fill!(diagh, zero(T))
-    # Compute dot product
-    _update_ypred!(data, ω)
-    n = length(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -154,14 +143,11 @@ O(n x 2 x p)
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                   vec::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
-    p = dim(data)
+    p = nfeatures(data)
+    n = ndata(data)
     @assert length(ω) == length(vec) == length(hessvec) == p
-    # Reset diagh
-    fill!(hessvec, zero(T))
-    # Compute dot product
-    _update_ypred!(data, ω)
-    invn = one(T) / length(data)
-    @inbounds for i in 1:length(data)
+    invn = one(T) / n
+    @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
         cst = invn * σz * (T(1) - σz)
         acc = zero(T)

@@ -4,32 +4,67 @@ abstract type AbstractModel end
 ##################################################
 # PRIMAL
 ##################################################
+const NULL_HASH = UInt64(0)
+
 # define logistic problem
-struct GeneralizedLinearModel{T <: Real} <: AbstractModel
+# TODO: add inheritance from MMI.Probabilistic
+mutable struct LogisticRegressor{T <: Real} <: AbstractModel
     data::AbstractDataset{T}
     penalty::AbstractPenalty
+    hash_x::UInt64
+    fit_intercept::Bool
+    # To log evolution during optimization process
     logger::AbstractLogger
 end
-GeneralizedLinearModel(data::AbstractDataset{T}, penalty::AbstractPenalty) where T = GeneralizedLinearModel(data, penalty, NoLogger())
+function LogisticRegressor(data::AbstractDataset{T},
+                           penalty::AbstractPenalty) where T
+    return LogisticRegressor(data, penalty, NULL_HASH, false , NoLogger())
+end
+function LogisticRegressor(X::AbstractArray{T, 2}, y::AbstractVector{T};
+                           penalty=L2Penalty(0.0),
+                           logger=NoLogger(),
+                           fit_intercept=false) where T
+    data = LogitData(X, y)
+    return LogisticRegressor(data, penalty, NULL_HASH, fit_intercept , logger)
+end
 
-function loss(θ::AbstractVector{T}, model::GeneralizedLinearModel{T}) where T
-    obj = loss(θ, model.data) + model.penalty(θ)
+function update!(model::LogisticRegressor, x)
+    new_hash = hash(x)
+    # Update prediction only if we test a new x
+    if new_hash != model.hash_x
+        predict!(model.data, x)
+        data.hash_x = new_hash
+    end
+end
+
+function loss(x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    update!(model, x)
+    obj = loss(x, model.data) + model.penalty(x)
     return obj
 end
 
-function gradient!(grad::AbstractVector{T}, θ::AbstractVector{T}, model::GeneralizedLinearModel{T}) where T
-    gradient!(grad, θ, model.data)
-    gradient!(grad, θ, model.penalty)
+function gradient!(grad::AbstractVector{T}, x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Reset gradient
+    fill!(grad, 0.0)
+    update!(model, x)
+    gradient!(grad, x, model.data)
+    gradient!(grad, x, model.penalty)
 end
 
-function hess!(hess::AbstractVector{T}, x::AbstractVector{T}, model::GeneralizedLinearModel{T}) where T
-    hess!(hess, x, model.data)
-    hess!(hess, x, model.penalty)
+function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Reset hessian
+    fill!(hess, 0.0)
+    update!(model, x)
+    hessian!(hess, x, model.data)
+    hessian!(hess, x, model.penalty)
 end
 
-function hessvec!(hessvec::AbstractVector{T}, θ::AbstractVector{T}, vec::AbstractVector{T}, model::GeneralizedLinearModel{T}) where T
-    hessvec!(hessvec, θ, vec, model.data)
-    hessvec!(hessvec, θ, vec, model.penalty)
+function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Reset hessian
+    fill!(hessvec, 0.0)
+    update!(model, x)
+    hessvec!(hessvec, x, vec, model.data)
+    hessvec!(hessvec, x, vec, model.penalty)
 end
 
 ##################################################
@@ -37,24 +72,24 @@ end
 ##################################################
 # Define dual model
 # Currently, it suports only L2 penalty
-struct DualGeneralizedLinearModel{T <: Real} <: AbstractModel
+mutable struct DualLogisticRegressor{T <: Real} <: AbstractModel
     data::AbstractDataset{T}
     penalty::L2Penalty
     logger::AbstractLogger
 end
-DualGeneralizedLinearModel(data::AbstractDataset{T}, penalty::L2Penalty) where T = DualGeneralizedLinearModel(data, penalty, NoLogger())
+DualLogisticRegressor(data::AbstractDataset{T}, penalty::L2Penalty) where T = DualLogisticRegressor(data, penalty, NoLogger())
 
-update!(model::DualGeneralizedLinearModel, x::AbstractVector) = _update_xpred!(model.data, x)
+update!(model::DualLogisticRegressor, x::AbstractVector) = _update_xpred!(model.data, x)
 
 function loss(θ::AbstractVector{T},
-              model::DualGeneralizedLinearModel{T}) where T
+              model::DualLogisticRegressor{T}) where T
     update!(model, θ)
     obj = loss(θ, model.data) + model.penalty(model.data.x_pred)
     return obj
 end
 
 function gradient!(grad::AbstractVector{T}, θ::AbstractVector{T},
-                   model:: DualGeneralizedLinearModel{T}) where T
+                   model:: DualLogisticRegressor{T}) where T
     update!(model, θ)
     gradient!(grad, θ, model.data)
     # compute gradient of penalty ||X^\top θ||_2^2 in two steps
@@ -65,7 +100,7 @@ end
 
 function hess!(hess::AbstractVector{T},
                x::AbstractVector{T},
-               model::DualGeneralizedLinearModel{T}) where T
+               model::DualLogisticRegressor{T}) where T
     update!(model, θ)
     hess!(hess, x, model.data)
     hess!(hess, x, model.penalty)
@@ -74,7 +109,7 @@ end
 function hessvec!(hv::AbstractVector{T},
                   θ::AbstractVector{T},
                   vec::AbstractVector{T},
-                  model::DualGeneralizedLinearModel{T}) where T
+                  model::DualLogisticRegressor{T}) where T
     update!(model, θ)
     hessvec!(hv, θ, vec, model.data)
     hessvec!(hv, θ, vec, model.penalty)

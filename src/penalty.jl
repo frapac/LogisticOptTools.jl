@@ -5,7 +5,7 @@ abstract type AbstractPenalty end
 gradient!(g, x, penalty::AbstractPenalty) = nothing
 
 "Compute inplace Hessian of `penalty`."
-hess!(hess, x, penalty::AbstractPenalty) = nothing
+hessian!(hess, x, penalty::AbstractPenalty) = nothing
 
 "Compute inplace diagonal for Hessian of `penalty`."
 diaghess!(dh, x, penalty::AbstractPenalty) = nothing
@@ -18,6 +18,7 @@ hessvec!(hv, x, vec, penalty::AbstractPenalty) = nothing
 struct L2Penalty{T} <: AbstractPenalty
     constant::T
 end
+
 (penalty::L2Penalty{T})(x::Vector{T}) where T = penalty.constant * dot(x, x)
 
 function gradient!(g::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
@@ -30,7 +31,7 @@ function gradient!(g::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     return nothing
 end
 
-function hess!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+function hessian!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     # Sanity check
     n = length(x)
     @assert length(hess) == n * (n + 1) / 2
@@ -69,9 +70,11 @@ abstract type AbstractL1Penalty <: AbstractPenalty end
 struct L1Penalty{T} <: AbstractL1Penalty
     constant::T
 end
+
 function (penalty::L1Penalty{T})(x::Vector{T}) where T
     return penalty.constant * sum(abs.(x))
 end
+
 function gradient!(g::Vector{T}, x::Vector{T}, penalty::L1Penalty{T}) where T
     @inbounds for i in 1:length(x)
         g[i] += penalty.constant * sign(x[i])
@@ -83,7 +86,6 @@ end
 struct LinearizedL1Penalty{T} <: AbstractL1Penalty
     constant::T
 end
-
 function (penalty::LinearizedL1Penalty{T})(x::Vector{T}) where T
     return T(0)
 end
@@ -96,7 +98,6 @@ struct L0Penalty{T} <: AbstractPenalty
     constant::T
     inner_penalty::AbstractPenalty
 end
-
 L0Penalty(c::T) where T = L0Penalty(c, L2Penalty(T(0.0)))
 L0Penalty(c::T, λ::T) where T = L0Penalty(c, L2Penalty(λ))
 
@@ -104,33 +105,16 @@ L0Penalty(c::T, λ::T) where T = L0Penalty(c, L2Penalty(λ))
 function (penalty::L0Penalty{T})(x::Vector{T}) where T
     return penalty.inner_penalty(x)
 end
+
 function gradient!(g::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
     gradient!(g, x, penalty.inner_penalty)
 end
+
 function hess!(hess::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
     hess!(hess, x, penalty.inner_penalty)
 end
+
 function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L0Penalty{T}) where T
     hessvec!(hv, x, vec, penalty.inner_penalty)
-end
-
-# TODO: Some work in progress
-# See: https://francisbach.com/the-eta-trick-reloaded-multiple-kernel-learning/
-struct EtaTrickL1Penalty{T} <: AbstractL1Penalty
-    constant::T
-end
-
-function (penalty::EtaTrickL1Penalty{T})(x::Vector{T}) where T
-    acc = zero(T)
-    @inbounds for i in 1:length(x)
-        acc +=0
-    end
-    return T(0.5) * penalty.constant * acc
-end
-function gradient!(g, x, penalty::EtaTrickL1Penalty)
-    dimx = div(length(x), 2)
-    @inbounds for i in dimx+1:2*dimx
-        g[i] += penalty.constant
-    end
 end
 
