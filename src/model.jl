@@ -89,6 +89,16 @@ mutable struct DualLogisticRegressor{T <: Real} <: AbstractModel
 end
 DualLogisticRegressor(data::AbstractDataset{T}, penalty::L2Penalty) where T = DualLogisticRegressor(data, penalty, NULL_HASH, NoLogger())
 
+function DualLogisticRegressor(X::AbstractArray{T, 2}, y::AbstractVector{T};
+                               penalty=L2Penalty(0.0),
+                               logger=NoLogger()) where T
+    if issparse(X)
+        error("Sparse arrays not yet supported for dual logistic regression")
+    end
+    data = DualLogitData(X, y)
+    return DualLogisticRegressor(data, penalty, NULL_HASH, logger)
+end
+
 function update!(model::DualLogisticRegressor, x::AbstractVector)
     new_hash = hash(x)
     if new_hash != model.hash_λ

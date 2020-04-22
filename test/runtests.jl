@@ -172,10 +172,14 @@ end
         LOT.gradient!(g, λ, data)
     end
     @testset "Dual GLM" begin
-        glm = LOT.DualLogisticRegressor(data, penalty)
         λ = zeros(n)
-        @test LOT.loss(λ, glm) == 0.0
         g = zeros(n)
+        glm = LOT.DualLogisticRegressor(data, penalty)
+        @test LOT.loss(λ, glm) == 0.0
+        LOT.gradient!(g, λ, glm)
+
+        glm = LOT.DualLogisticRegressor(X, y)
+        @test LOT.loss(λ, glm) == 0.0
         LOT.gradient!(g, λ, glm)
     end
     @testset "Fitting (dual)" begin
