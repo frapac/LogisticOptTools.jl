@@ -27,13 +27,3 @@ function empty!(tracer::Tracer{T}) where T
 end
 
 isdefined(t::Tracer) = true
-
-"Display trace stored in `logger`. Require `PyPlot`."
-function display(logger::Tracer; lw=1., label="", c=nothing)
-    t0 = logger.time[1]
-    taxis = copy(logger.time)
-    taxis .-= t0
-    plot(taxis, log10.(logger.grad), lw=lw, label=label, marker="s", c=c,
-         markersize=2.0)
-    return taxis[end]
-end
