@@ -24,7 +24,8 @@ function LogisticRegressor(X::AbstractArray{T, 2}, y::AbstractVector{T};
                            penalty=L2Penalty(0.0),
                            logger=NoLogger(),
                            fit_intercept=false) where T
-    data = LogitData(X, y)
+    Dataset = issparse(X) ? SparseLogitData : LogitData
+    data = Dataset(X, y)
     return LogisticRegressor(data, penalty, NULL_HASH, fit_intercept , logger)
 end
 
@@ -33,7 +34,7 @@ function update!(model::LogisticRegressor, x)
     # Update prediction only if we test a new x
     if new_hash != model.hash_x
         predict!(model.data, x)
-        data.hash_x = new_hash
+        model.hash_x = new_hash
     end
 end
 
@@ -65,6 +66,14 @@ function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::Abstrac
     update!(model, x)
     hessvec!(hessvec, x, vec, model.data)
     hessvec!(hessvec, x, vec, model.penalty)
+end
+
+function generate_callbacks(model::LogisticRegressor)
+    f = x -> loss(x, model)
+    grad! = (g, x) -> gradient!(g, x, model)
+    hess! = (h, x) -> hessian!(h, x, model)
+    hessvec! = (h, x, v) -> hessian!(h, x, v, model)
+    return f, grad!, hess!, hessvec!
 end
 
 ##################################################
