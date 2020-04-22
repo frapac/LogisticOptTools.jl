@@ -84,16 +84,23 @@ end
 mutable struct DualLogisticRegressor{T <: Real} <: AbstractModel
     data::AbstractDataset{T}
     penalty::L2Penalty
+    hash_λ::UInt64
     logger::AbstractLogger
 end
-DualLogisticRegressor(data::AbstractDataset{T}, penalty::L2Penalty) where T = DualLogisticRegressor(data, penalty, NoLogger())
+DualLogisticRegressor(data::AbstractDataset{T}, penalty::L2Penalty) where T = DualLogisticRegressor(data, penalty, NULL_HASH, NoLogger())
 
-update!(model::DualLogisticRegressor, x::AbstractVector) = _update_xpred!(model.data, x)
+function update!(model::DualLogisticRegressor, x::AbstractVector)
+    new_hash = hash(x)
+    if new_hash != model.hash_λ
+        predict!(model.data, x)
+        model.hash_λ = new_hash
+    end
+end
 
-function loss(θ::AbstractVector{T},
+function loss(x::AbstractVector{T},
               model::DualLogisticRegressor{T}) where T
-    update!(model, θ)
-    obj = loss(θ, model.data) + model.penalty(model.data.x_pred)
+    update!(model, x)
+    obj = loss(x, model.data) + model.penalty(model.data.x_pred)
     return obj
 end
 
@@ -107,19 +114,19 @@ function gradient!(grad::AbstractVector{T}, θ::AbstractVector{T},
     grad .+= model.data.X * gpenal
 end
 
-function hess!(hess::AbstractVector{T},
+function hessian!(hess::AbstractVector{T},
                x::AbstractVector{T},
                model::DualLogisticRegressor{T}) where T
     update!(model, θ)
-    hess!(hess, x, model.data)
-    hess!(hess, x, model.penalty)
+    hessian!(hess, x, model.data)
+    hessian!(hess, x, model.penalty)
 end
 
 function hessvec!(hv::AbstractVector{T},
-                  θ::AbstractVector{T},
+                  x::AbstractVector{T},
                   vec::AbstractVector{T},
                   model::DualLogisticRegressor{T}) where T
-    update!(model, θ)
-    hessvec!(hv, θ, vec, model.data)
-    hessvec!(hv, θ, vec, model.penalty)
+    update!(model, x)
+    hessvec!(hv, x, vec, model.data)
+    hessvec!(hv, x, vec, model.penalty)
 end
