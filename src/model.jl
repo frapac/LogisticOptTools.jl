@@ -104,10 +104,11 @@ function loss(x::AbstractVector{T},
     return obj
 end
 
-function gradient!(grad::AbstractVector{T}, θ::AbstractVector{T},
+function gradient!(grad::AbstractVector{T}, x::AbstractVector{T},
                    model:: DualLogisticRegressor{T}) where T
-    update!(model, θ)
-    gradient!(grad, θ, model.data)
+    fill!(grad, 0.0)
+    update!(model, x)
+    gradient!(grad, x, model.data)
     # compute gradient of penalty ||X^\top θ||_2^2 in two steps
     gpenal = zeros(length(model.data.x_pred))
     gradient!(gpenal, model.data.x_pred, model.penalty)
@@ -115,9 +116,10 @@ function gradient!(grad::AbstractVector{T}, θ::AbstractVector{T},
 end
 
 function hessian!(hess::AbstractVector{T},
-               x::AbstractVector{T},
-               model::DualLogisticRegressor{T}) where T
-    update!(model, θ)
+                  x::AbstractVector{T},
+                  model::DualLogisticRegressor{T}) where T
+    fill!(hess, 0.0)
+    update!(model, x)
     hessian!(hess, x, model.data)
     hessian!(hess, x, model.penalty)
 end
@@ -126,7 +128,16 @@ function hessvec!(hv::AbstractVector{T},
                   x::AbstractVector{T},
                   vec::AbstractVector{T},
                   model::DualLogisticRegressor{T}) where T
+    fill!(hv, 0.0)
     update!(model, x)
     hessvec!(hv, x, vec, model.data)
     hessvec!(hv, x, vec, model.penalty)
+end
+
+function generate_callbacks(model::DualLogisticRegressor)
+    f = x -> loss(x, model)
+    grad! = (g, x) -> gradient!(g, x, model)
+    hess! = (h, x) -> hessian!(h, x, model)
+    hessvec! = (h, x, v) -> hessian!(h, x, v, model)
+    return f, grad!, hess!, hessvec!
 end

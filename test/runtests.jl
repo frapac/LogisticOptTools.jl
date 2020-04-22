@@ -180,8 +180,7 @@ end
     end
     @testset "Fitting (dual)" begin
         glm = LOT.DualLogisticRegressor(data, penalty)
-        f = x -> LOT.loss(x, glm)
-        gradient! = (g, x) -> LOT.gradient!(g, x, glm)
+        f, gradient!, _, _ = LOT.generate_callbacks(glm)
         algo = BFGS()
         options = Optim.Options(iterations=250, g_tol=1e-5)
         lower = LOT.lowerbound(data)

@@ -1,5 +1,8 @@
 import Base: length
 
+# TODO
+# * Implement Hessian and DiagHess
+
 # Define data for logistic regression problem
 mutable struct DualLogitData{T <: Real} <: AbstractDataset{T}
     X::AbstractArray{T}
