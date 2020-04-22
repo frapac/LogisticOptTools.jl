@@ -150,7 +150,7 @@ end
             options = Optim.Options(iterations=250, g_tol=1e-5)
             res_joptim = Optim.optimize(f, g!, zeros(LOT.dim(data)), algo, options)
             @test res_joptim.minimum ≈ solution
-            Optim.converged(res_joptim)
+            @test Optim.converged(res_joptim)
         end
     end
 end
@@ -161,7 +161,7 @@ end
     y = svm_data.labels
     data = LOT.DualLogitData(X, y)
     n = length(data)
-    penalty = LOT.L2Penalty(1.0)
+    penalty = LOT.L2Penalty(0.0)
     @testset "Dual Logit" begin
         λ = zeros(n)
         @test LOT.loss(λ, data) == 0.0
@@ -176,5 +176,19 @@ end
         @test LOT.loss(λ, glm) == 0.0
         g = zeros(n)
         LOT.gradient!(g, λ, glm)
+    end
+    @testset "Fitting (dual)" begin
+        glm = LOT.DualGeneralizedLinearModel(data, penalty)
+        f = x -> LOT.loss(x, glm)
+        gradient! = (g, x) -> LOT.gradient!(g, x, glm)
+        algo = BFGS()
+        options = Optim.Options(iterations=250, g_tol=1e-5)
+        lower = LOT.lowerbound(data)
+        upper = LOT.upperbound(data)
+        x0 = 0.5 * (lower .+ upper)
+        res_joptim = Optim.optimize(f, gradient!, lower, upper,
+                                    x0, Fminbox(algo), options)
+        @test Optim.converged(res_joptim)
+        println(res_joptim.minimum)
     end
 end

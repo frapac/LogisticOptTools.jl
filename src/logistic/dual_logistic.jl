@@ -8,6 +8,9 @@ mutable struct DualLogitData{T <: Real} <: AbstractDataset{T}
     hash_λ::UInt64
 end
 
+lowerbound(data::DualLogitData) = -0.5 * data.y .- 0.5
+upperbound(data::DualLogitData) = -0.5 * data.y .+ 0.5
+
 function _update_xpred!(data::DualLogitData{T}, x::AbstractVector{T}) where T
     new_hash = hash(x)
     if new_hash != data.hash_λ
