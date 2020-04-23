@@ -1,7 +1,4 @@
 # Define logistic loss
-# TODO
-# [ ] Take into account slope
-
 
 # Define data for logistic regression problem
 struct SparseLogitData{T <: Real} <: AbstractDataset{T}
@@ -16,10 +13,13 @@ function SparseLogitData(X::AbstractSparseMatrix{T, Int}, y::Vector{T}) where T
     @assert size(X, 1) == size(y, 1)
     return SparseLogitData(X, y, zeros(T, size(y, 1)), zeros(T, size(y, 1)))
 end
-function SparseLogitData(libsmv_file::String)
+function SparseLogitData(libsmv_file::String; scale_data=false)
     dataset = parse_libsvm(libsmv_file)
     # Convert to sparse matrix
     X = to_sparse(dataset)
+    if scale_data
+        scale!(NormalScaler(), X)
+    end
     y = copy(dataset.labels)
     format_label!(y)
     return SparseLogitData(X, y, zeros(size(y, 1)),
@@ -78,6 +78,17 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::SparseL
         end
     end
     return nothing
+end
+
+# TODO: remove this duplicate
+function gradient_intercept(x::AbstractVector{T}, data::SparseLogitData{T}) where T
+    tmp = T(0)
+    n = ndata(data)
+    invn = -one(T) / n
+    @inbounds for j in 1:n
+        tmp += data.y[j] * expit(-data.y_pred[j] * data.y[j])
+    end
+    return invn * tmp
 end
 
 """

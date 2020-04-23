@@ -82,9 +82,9 @@ function gradient_intercept(x::AbstractVector{T}, data::LogitData{T}) where T
     n = ndata(data)
     invn = -one(T) / n
     @inbounds for j in 1:n
-        tmp = data.y[j] * expit(-data.y_pred[j] * data.y[j])
+        tmp += data.y[j] * expit(-data.y_pred[j] * data.y[j])
     end
-    return tmp * invn
+    return invn * tmp
 end
 
 """
@@ -122,10 +122,9 @@ O(n * p)
 """
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
+    n = ndata(data)
     p = nfeatures(data)
     @assert length(ω) == length(diagh) == p
-    p = nfeatures(data)
-    n = ndata(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])

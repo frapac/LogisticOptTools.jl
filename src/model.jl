@@ -67,14 +67,15 @@ function gradient!(grad::AbstractVector{T}, x::AbstractVector{T}, model::Logisti
     # Reset gradient
     fill!(grad, 0.0)
     update!(model, x)
-    gradient!(grad, x, model.data)
     if model.fit_intercept
         p = nfeatures(model)
         g = @view grad[1:p]
         w = @view x[1:p]
+        gradient!(g, w, model.data)
         gradient!(g, w, model.penalty)
         grad[end] = gradient_intercept(x, model.data)
     else
+        gradient!(grad, x, model.data)
         gradient!(grad, x, model.penalty)
     end
 end
@@ -96,6 +97,7 @@ function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::Abstrac
     @assert length(vec) == length(x)
     # Reset hessian
     fill!(hessvec, 0.0)
+    # Update yₚ
     update!(model, x)
     hessvec!(hessvec, x, vec, model.data)
     hessvec!(hessvec, x, vec, model.penalty)
