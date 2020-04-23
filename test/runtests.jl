@@ -68,7 +68,7 @@ end
     X = LOT.to_dense(svm_data)
     y = svm_data.labels
 
-    @testset "Constructor" begin
+    @testset "Constructor dense dataset" begin
         d1 = @inferred LOT.LogitData(X, y)
         @test sort(unique(d1.y)) == [-1.0, 1.0]
         d2 = @inferred LOT.LogitData(SVM_DATASET, scale_data=false)
@@ -79,6 +79,12 @@ end
         @test sort(unique(d3.y)) == [-1.0, 1.0]
     end
 
+    @testset "Constructor sparse dataset" begin
+        d2 = @inferred LOT.SparseLogitData(SVM_DATASET, scale_data=false)
+        @test sort(unique(d2.y)) == [-1.0, 1.0]
+        d2 = @inferred LOT.SparseLogitData(SVM_DATASET, scale_data=true)
+        @test sort(unique(d2.y)) == [-1.0, 1.0]
+    end
 
     @testset "Primal logistic regression" begin
         for Dataset in [LOT.LogitData, LOT.SparseLogitData]
@@ -138,6 +144,9 @@ end
         y = svm_data.labels
         # Solution when data are scaled
         solution = 0.6084979240046
+        options = Optim.Options(iterations=250, g_tol=1e-5)
+        algo = BFGS()
+        # No intercept
         for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
             data = glm(X, y)
             @test LOT.ndata(data) == length(y)
@@ -146,12 +155,23 @@ end
             # Build callbacks
             logreg = LOT.LogisticRegressor(X, y)
             f, g!, _, _ = LOT.generate_callbacks(logreg)
-            algo = BFGS()
-            options = Optim.Options(iterations=250, g_tol=1e-5)
             x0 = zeros(p)
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
             @test res_joptim.minimum ≈ solution
             @test Optim.converged(res_joptim)
+        end
+        # Intercept
+        for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
+            data = glm(X, y)
+            p = LOT.nfeatures(data)
+            # Build callbacks
+            logreg = LOT.LogisticRegressor(X, y, fit_intercept=true)
+            f, g!, _, _ = LOT.generate_callbacks(logreg)
+            x0 = zeros(p + 1)
+            res_joptim = Optim.optimize(f, g!, x0, algo, options)
+            #= @test res_joptim.minimum ≈ solution =#
+            # TODO: broken test for sparse data
+            #= @test Optim.converged(res_joptim) =#
         end
     end
 end
