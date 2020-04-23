@@ -10,8 +10,11 @@ const NULL_HASH = UInt64(0)
 # TODO: add inheritance from MMI.Probabilistic
 mutable struct LogisticRegressor{T <: Real} <: AbstractModel
     data::AbstractDataset{T}
+    # Penalty to apply (L0, L1 or L2)
     penalty::AbstractPenalty
+    # Hash for current x to avoid computing twice some operations
     hash_x::UInt64
+    # Shall we fit intercept as well?
     fit_intercept::Bool
     # To log evolution during optimization process
     logger::AbstractLogger
@@ -26,33 +29,60 @@ function LogisticRegressor(X::AbstractArray{T, 2}, y::AbstractVector{T};
                            fit_intercept=false) where T
     Dataset = issparse(X) ? SparseLogitData : LogitData
     data = Dataset(X, y)
-    return LogisticRegressor(data, penalty, NULL_HASH, fit_intercept , logger)
+    return LogisticRegressor(data, penalty, NULL_HASH, fit_intercept ,logger)
 end
+
+nfeatures(model::LogisticRegressor) = nfeatures(model.data)
 
 function update!(model::LogisticRegressor, x)
     new_hash = hash(x)
     # Update prediction only if we test a new x
     if new_hash != model.hash_x
-        predict!(model.data, x)
+        nfeat = nfeatures(model)
+        if model.fit_intercept
+            predict!(model.data, @view x[1:nfeat])
+            model.data.y_pred .+= x[end]
+        else
+            predict!(model.data, x)
+        end
         model.hash_x = new_hash
     end
 end
 
 function loss(x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Sanity check
     update!(model, x)
-    obj = loss(x, model.data) + model.penalty(x)
+    if model.fit_intercept
+        w = @view x[1:nfeatures(model)]
+        obj = loss(w, model.data) + model.penalty(w)
+    else
+        obj = loss(x, model.data) + model.penalty(x)
+    end
     return obj
 end
 
 function gradient!(grad::AbstractVector{T}, x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Sanity check
+    @assert length(x) == length(grad)
     # Reset gradient
     fill!(grad, 0.0)
     update!(model, x)
     gradient!(grad, x, model.data)
-    gradient!(grad, x, model.penalty)
+    if model.fit_intercept
+        p = nfeatures(model)
+        g = @view grad[1:p]
+        w = @view x[1:p]
+        gradient!(g, w, model.penalty)
+        grad[end] = gradient_intercept(x, model.data)
+    else
+        gradient!(grad, x, model.penalty)
+    end
 end
 
 function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Sanity check
+    p = length(x)
+    @assert length(hess) == p * (p + 1) / 2
     # Reset hessian
     fill!(hess, 0.0)
     update!(model, x)
@@ -61,6 +91,9 @@ function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, model::Logistic
 end
 
 function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::AbstractVector{T}, model::LogisticRegressor{T}) where T
+    # Sanity check
+    @assert length(vec) == length(hessvec)
+    @assert length(vec) == length(x)
     # Reset hessian
     fill!(hessvec, 0.0)
     update!(model, x)

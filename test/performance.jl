@@ -1,37 +1,34 @@
 using LinearAlgebra, SparseArrays
 using LogisticOptTools
+using BenchmarkTools
 
 const LOT = LogisticOptTools
 
-function dense_callbacks(;n=2_000, p=2_000)
+function dense_callbacks(;n=2_000, p=2_000, intercept=false)
     A = randn(n, p)
     b = sign.(randn(n))
     x = randn(p)
 
     dat = LOT.LogitData(A, b)
     logit = LOT.LogisticRegressor(dat, LOT.L2Penalty(1.0))
+    logit.fit_intercept = intercept
 
     println("Benchmark f")
-    LOT.loss(x, dat)
-    LOT.loss(x, logit)
     @time LOT.loss(x, dat)
     @time LOT.loss(x, logit)
 
     println("Benchmark ∇f")
     g = zeros(p)
-    LOT.gradient!(g, x, dat)
-    LOT.gradient!(g, x, logit)
     @time LOT.gradient!(g, x, dat)
     @time LOT.gradient!(g, x, logit)
 
     println("Benchmark ∇^2f v")
     hvec = zeros(p)
     vec = zeros(p)
-    LOT.hessvec!(hvec, x, vec, dat)
     @time LOT.hessvec!(hvec, x, vec, dat)
+    @time LOT.hessvec!(hvec, x, vec, logit)
 
     println("Benchmark diag(∇^2f)")
-    LOT.diaghess!(hvec, x, dat)
     @time LOT.diaghess!(hvec, x, dat)
 
     println("Benchmark ∇^2f")
@@ -42,7 +39,6 @@ function dense_callbacks(;n=2_000, p=2_000)
     logit = LOT.LogisticRegressor(dat, LOT.L2Penalty(1.0))
     hess = zeros(div(p * (p+1), 2))
     x = randn(p)
-    LOT.hessian!(hess, x, dat)
     @time LOT.hessian!(hess, x, dat)
     @time LOT.hessian!(hess, x, logit)
 end
@@ -57,19 +53,19 @@ function sparse_callbacks(;n=2_000, p=2_000)
     logit = LOT.LogisticRegressor(dat, LOT.L2Penalty(1.0))
 
     n = LOT.nfeatures(dat)
-    x = randn(n)
+    x = randn(p)
     println("Benchmark f")
     LOT.loss(x, dat)
     @time LOT.loss(x, dat)
 
     println("Benchmark ∇f")
-    g = zeros(n)
+    g = zeros(p)
     LOT.gradient!(g, x, dat)
     @time LOT.gradient!(g, x, dat)
 
     println("Benchmark ∇^2f v")
-    hvec = zeros(n)
-    vec = zeros(n)
+    hvec = zeros(p)
+    vec = zeros(p)
     LOT.hessvec!(hvec, x, vec, dat)
     @time LOT.hessvec!(hvec, x, vec, dat)
 

@@ -49,8 +49,6 @@ O(n)
 
 """
 function loss(ω::AbstractVector{T}, data::LogitData{T}) where T
-    # Sanity check
-    @assert length(ω) == nfeatures(data)
     # Compute dot product
     res = zero(T)
     @inbounds for i in 1:ndata(data)
@@ -67,8 +65,6 @@ O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
-    # Sanity check
-    @assert length(ω) == length(grad) == nfeatures(data)
     nfeats = nfeatures(data)
     n = ndata(data)
     invn = -one(T) / n
@@ -79,6 +75,16 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDa
         end
     end
     return nothing
+end
+
+function gradient_intercept(x::AbstractVector{T}, data::LogitData{T}) where T
+    tmp = T(0)
+    n = ndata(data)
+    invn = -one(T) / n
+    @inbounds for j in 1:n
+        tmp = data.y[j] * expit(-data.y_pred[j] * data.y[j])
+    end
+    return tmp * invn
 end
 
 """
@@ -92,8 +98,6 @@ function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDat
     # Sanity check
     p = nfeatures(data)
     n = ndata(data)
-    @assert length(ω) == p
-    @assert length(hess) == p * (p + 1) / 2
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -119,8 +123,9 @@ O(n * p)
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
     # Sanity check
     p = nfeatures(data)
-    n = ndata(data)
     @assert length(ω) == length(diagh) == p
+    p = nfeatures(data)
+    n = ndata(data)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
@@ -142,10 +147,8 @@ O(n x 2 x p)
 """
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                   vec::AbstractVector{T}, data::LogitData{T}) where T
-    # Sanity check
     p = nfeatures(data)
     n = ndata(data)
-    @assert length(ω) == length(vec) == length(hessvec) == p
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])

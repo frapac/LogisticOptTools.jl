@@ -19,9 +19,9 @@ struct L2Penalty{T} <: AbstractPenalty
     constant::T
 end
 
-(penalty::L2Penalty{T})(x::Vector{T}) where T = penalty.constant * dot(x, x)
+(penalty::L2Penalty{T})(x::AbstractVector{T}) where T = penalty.constant * dot(x, x)
 
-function gradient!(g::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+function gradient!(g::AbstractVector{T}, x::AbstractVector{T}, penalty::L2Penalty{T}) where T
     # Sanity check
     n = length(x)
     @assert length(g) == n
@@ -31,7 +31,7 @@ function gradient!(g::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     return nothing
 end
 
-function hessian!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, penalty::L2Penalty{T}) where T
     # Sanity check
     n = length(x)
     @assert length(hess) == n * (n + 1) / 2
@@ -44,7 +44,7 @@ function hessian!(hess::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     return nothing
 end
 
-function diaghess!(dh::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
+function diaghess!(dh::AbstractVector{T}, x::AbstractVector{T}, penalty::L2Penalty{T}) where T
     # Sanity check
     n = length(x)
     @assert length(dh) == n
@@ -54,7 +54,7 @@ function diaghess!(dh::Vector{T}, x::Vector{T}, penalty::L2Penalty{T}) where T
     return nothing
 end
 
-function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L2Penalty{T}) where T
+function hessvec!(hv::AbstractVector{T}, x::AbstractVector{T}, vec::AbstractVector{T}, penalty::L2Penalty{T}) where T
     n = length(x)
     @assert length(hv) == length(vec) == n
     @inbounds for i in 1:n
@@ -71,11 +71,11 @@ struct L1Penalty{T} <: AbstractL1Penalty
     constant::T
 end
 
-function (penalty::L1Penalty{T})(x::Vector{T}) where T
+function (penalty::L1Penalty{T})(x::AbstractVector{T}) where T
     return penalty.constant * sum(abs.(x))
 end
 
-function gradient!(g::Vector{T}, x::Vector{T}, penalty::L1Penalty{T}) where T
+function gradient!(g::AbstractVector{T}, x::AbstractVector{T}, penalty::L1Penalty{T}) where T
     @inbounds for i in 1:length(x)
         g[i] += penalty.constant * sign(x[i])
     end
@@ -86,7 +86,7 @@ end
 struct LinearizedL1Penalty{T} <: AbstractL1Penalty
     constant::T
 end
-function (penalty::LinearizedL1Penalty{T})(x::Vector{T}) where T
+function (penalty::LinearizedL1Penalty{T})(x::AbstractVector{T}) where T
     return T(0)
 end
 
@@ -102,19 +102,19 @@ L0Penalty(c::T) where T = L0Penalty(c, L2Penalty(T(0.0)))
 L0Penalty(c::T, λ::T) where T = L0Penalty(c, L2Penalty(λ))
 
 # L0 penalty
-function (penalty::L0Penalty{T})(x::Vector{T}) where T
+function (penalty::L0Penalty{T})(x::AbstractVector{T}) where T
     return penalty.inner_penalty(x)
 end
 
-function gradient!(g::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
+function gradient!(g::AbstractVector{T}, x::AbstractVector{T}, penalty::L0Penalty{T}) where T
     gradient!(g, x, penalty.inner_penalty)
 end
 
-function hess!(hess::Vector{T}, x::Vector{T}, penalty::L0Penalty{T}) where T
+function hess!(hess::AbstractVector{T}, x::AbstractVector{T}, penalty::L0Penalty{T}) where T
     hess!(hess, x, penalty.inner_penalty)
 end
 
-function hessvec!(hv::Vector{T}, x::Vector{T}, vec::Vector{T}, penalty::L0Penalty{T}) where T
+function hessvec!(hv::AbstractVector{T}, x::AbstractVector{T}, vec::AbstractVector{T}, penalty::L0Penalty{T}) where T
     hessvec!(hv, x, vec, penalty.inner_penalty)
 end
 
