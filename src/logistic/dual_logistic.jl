@@ -4,7 +4,7 @@ import Base: length
 # * Implement Hessian and DiagHess
 
 # Define data for logistic regression problem
-mutable struct DualLogitData{T <: Real} <: AbstractDataset{T}
+struct DualLogitData{T <: Real} <: AbstractDataset{T}
     X::AbstractArray{T}
     y::Vector{T}
     x_pred::Vector{T}
