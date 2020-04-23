@@ -3,25 +3,18 @@
 using Optim, LineSearches
 using LogisticOptTools
 using Plots
+
 const LOT = LogisticOptTools
 
 # Choose dataset to load
-DATASET = "colon-cancer.bz2"
-# Specify whether to run LBFGSB
-RUN_LBFGSB = true
+DATASET = "covtype.libsvm.binary.bz2"
 # Choose penalty with given coefficient λ
-PENALTY = LOT.L2Penalty(1e-5)
+PENALTY = LOT.L2Penalty(1e-2)
 
-# First step: load data
 if !isfile(DATASET)
     println("Download dataset from $LIBSVM_URL")
     download("$LIBSVM_URL/$DATASET", DATASET)
 end
-# Load dataset as dense matrices
-include("dataset.jl")
-#= X, y = real_dataset(DATASET) =#
-X, y = fake_dataset(10000, 2000, correlation=10.0, intercept=false)
-
 
 # Some plots utilities
 "Display evolution of gradients along iteration."
@@ -36,42 +29,29 @@ end
 
 "Display evolution of functions along iteration."
 function display_func(results::Optim.OptimizationResults,
+                      f♯,
                       label::String,
                       p::Plots.Plot)
     exectime = [t.metadata["time"] for t in results.trace]
     exectime .-= exectime[1]
     values = [t.value for t in results.trace]
-    values .-= values[end]
+    values .-= f♯
     plot!(p, exectime, log10.(values), marker=true, label=label, markersize=1.)
 end
 
-"Closure for evaluation callbacks"
-function get_callback(dat::LOT.LogitData, penalty::LOT.AbstractPenalty)
-    # Define logistic problem in closure for use in Optim.jl
-    prob = LOT.GeneralizedLinearModel(dat, penalty)
-    eval_f = x -> LOT.loss(x, prob)
-    function eval_g(g, x)
-        LOT.gradient!(g, x, prob)
-        return nothing
-    end
-    return (eval_f, eval_g)
-end
-get_callback(X, y; penalty=LOT.L2Penalty(0.0)) = get_callback(LOT.LogitData(X, y), penalty)
-
 "Benchmark algorithms from Optim.jl"
-function benchmark(algos, options, X, y, penalty)
-    n = size(X, 2)
-    x = zeros(n)
-    g = zeros(n)
-    # Build evaluation callbacks
-    f, g! = get_callback(X, y, penalty=penalty)
-    # Activate compilation
+function benchmark(algos, options, logreg)
+    p = LOT.nfeatures(logreg)
+    x = zeros(p)
+    g = zeros(p)
+    f, g!, _, _ = LOT.generate_callbacks(logreg)
+    # Activate precompilation
     f(x)
     g!(g, x)
 
     results = []
     for algo in algos
-        res = Optim.optimize(f, g!, zeros(size(X, 2)), algo, options)
+        res = Optim.optimize(f, g!, x, algo, options)
         push!(results, res)
     end
     return results
@@ -83,10 +63,14 @@ bfgs2 = BFGS(alphaguess=InitialStatic(alpha=1.0),
              linesearch=LineSearches.MoreThuente())
 cg = ConjugateGradient()
 
-options = Optim.Options(iterations=250, store_trace=true, show_trace=false,
+options = Optim.Options(iterations=100, store_trace=true, show_trace=true,
                         g_tol=1e-5, allow_f_increases=true)
 
-results = benchmark([bfgs1, bfgs2, cg], options, X, y, PENALTY)
+# Load data
+dataset = LOT.LogitData(DATASET, scale_data=true)
+# Build logistic regression
+logreg = LOT.LogisticRegressor(dataset.X, dataset.y, penalty=PENALTY, fit_intercept=true)
+results = benchmark([bfgs1, bfgs2, cg], options, logreg)
 
 # Plot evolution of gradient
 pg = plot(markershape=:rect)
@@ -96,19 +80,8 @@ ylabel!(pg, "Gradient (log scale)")
 
 # Plot evolution of function
 pf = plot(markershape=:rect)
-display_func.(results, ["Optim BFGS HZ", "Optim BFGS MT", "Optim CG"], Ref(pf))
+# Get optimum
+f♯ = minimum([res.minimum for res in results])
+display_func.(results, f♯, ["Optim BFGS HZ", "Optim BFGS MT", "Optim CG"], Ref(pf))
 xlabel!(pf, "Time (s)")
 ylabel!(pf, "log(f - fopt) ")
-
-if RUN_LBFGSB
-    include("lbfgsb.jl")
-    trace = bfgs_fit(LOT.LogitData(X, y), PENALTY, trace=true)
-    t0 = trace.time[1]
-    trace.time .-= t0
-    fopt = trace.obj[end]
-
-    plot!(pf, trace.time, log10.(trace.obj .- fopt), label="LBFGSB.jl",
-          marker=true, markersize=1.0)
-    plot!(pg, trace.time, log10.(trace.grad), label="LBFGSB.jl",
-          marker=true, markersize=1.0)
-end
