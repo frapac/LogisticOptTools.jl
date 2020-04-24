@@ -156,3 +156,31 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
     end
     return nothing
 end
+
+"""
+Compute diagonal of Hessian for given vector parameter `ω ∈  R^p`.
+
+## Complexity
+O(n * p)
+
+"""
+function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::SparseLogitData{T}) where T
+    # Sanity check
+    n = ndata(data)
+    p = nfeatures(data)
+    @assert length(ω) == length(diagh) == p
+    invn = one(T) / n
+    rowsv = rowvals(data.X)
+    xvals = nonzeros(data.X)
+    for ncol in 1:p
+        acc = zero(T)
+        @inbounds for j in nzrange(data.X, ncol)
+            i = rowsv[j]
+            vals = xvals[j]
+            σz = data.cache_σ[i]
+            acc += invn * σz * (one(T) - σz) * vals^2
+        end
+        @inbounds diagh[ncol] = acc
+    end
+    return nothing
+end

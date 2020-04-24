@@ -103,6 +103,16 @@ function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::Abstrac
     hessvec!(hessvec, x, vec, model.penalty)
 end
 
+function diaghess!(diagh::AbstractVector{T}, x::AbstractVector{T},
+                   model::LogisticRegressor{T}) where T
+    fill!(diagh, 0.0)
+    # Update yₚ
+    update!(model, x)
+    diaghess!(diagh, x, model.data)
+    diaghess!(diagh, x, model.penalty)
+    return
+end
+
 function generate_callbacks(model::LogisticRegressor)
     f = x -> loss(x, model)
     grad! = (g, x) -> gradient!(g, x, model)

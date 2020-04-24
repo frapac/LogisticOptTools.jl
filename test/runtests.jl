@@ -104,9 +104,9 @@ end
             @test LOT.loss(x0, data) ≈ -LOT.log1pexp(0.0)
             LOT.gradient!(g, x0, data)
             LOT.hessvec!(g, x0, vec, data)
+            LOT.diaghess!(diagh, x0, data)
             if isa(data, LOT.LogitData)
                 LOT.hessian!(hess, x0, data)
-                LOT.diaghess!(diagh, x0, data)
             end
         end
     end
