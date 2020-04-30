@@ -70,7 +70,7 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDa
     invn = -one(T) / n
     @inbounds for j in 1:n
         tmp = invn * data.y[j] * expit(-data.y_pred[j] * data.y[j])
-        @inbounds for i in 1:nfeats
+        for i in 1:nfeats
             grad[i] += tmp * data.X[j, i]
         end
     end
@@ -105,7 +105,7 @@ function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDat
         count = 1
         for j in 1:p
             for k in j:p
-                @inbounds hess[count] += cst * data.X[i, j] * data.X[i, k]
+                hess[count] += cst * data.X[i, j] * data.X[i, k]
                 count += 1
             end
         end
@@ -130,7 +130,7 @@ function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitD
         σz = expit(-data.y_pred[i] * data.y[i])
         cst = invn * σz * (one(T) - σz)
         for j in 1:p
-            @inbounds diagh[j] += cst * data.X[i, j] * data.X[i, j]
+            diagh[j] += cst * data.X[i, j] * data.X[i, j]
         end
     end
     return nothing
@@ -153,11 +153,11 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
         σz = expit(-data.y_pred[i] * data.y[i])
         cst = invn * σz * (T(1) - σz)
         acc = zero(T)
-        @inbounds for j in 1:p
+        @simd for j in 1:p
             acc += data.X[i, j] * vec[j]
         end
         pσ = cst * acc
-        @inbounds for j in 1:p
+        for j in 1:p
             hessvec[j] += pσ * data.X[i, j]
         end
     end

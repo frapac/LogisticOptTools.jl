@@ -69,13 +69,14 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::SparseL
     invn = -one(T) / ndata(data)
     rowsv = rowvals(data.X)
     xvals = nonzeros(data.X)
-    for ncol in 1:nfeatures(data)
-        @inbounds for j in nzrange(data.X, ncol)
+    @inbounds for ncol in 1:nfeatures(data)
+        acc = zero(T)
+        @simd for j in nzrange(data.X, ncol)
             i = rowsv[j]
             vals = xvals[j]
-            @inbounds tmp = invn * data.y[i] * data.cache_σ[i]
-            @inbounds grad[ncol] += tmp * vals
+            acc += invn * data.y[i] * data.cache_σ[i] * vals
         end
+        grad[ncol] = acc
     end
     return nothing
 end
@@ -139,19 +140,19 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
     invn = one(T) / n
 
     acc = zeros(n)
-    for ncol in 1:p
-        @inbounds for j in nzrange(data.X, ncol)
+    @inbounds for ncol in 1:p
+        for j in nzrange(data.X, ncol)
             i = rowsv[j]
             vals = xvals[j]
-            @inbounds cst = invn * data.cache_σ[i] * (1.0 - data.cache_σ[i])
-            @inbounds acc[i] += vec[ncol] * vals * cst
+            cst = invn * data.cache_σ[i] * (1.0 - data.cache_σ[i])
+            acc[i] += vec[ncol] * vals * cst
         end
     end
-    for ncol in 1:p
-        @inbounds for j in nzrange(data.X, ncol)
+    @inbounds for ncol in 1:p
+        @simd for j in nzrange(data.X, ncol)
             i = rowsv[j]
             vals = xvals[j]
-            @inbounds hessvec[ncol] += acc[i] * vals
+            hessvec[ncol] += acc[i] * vals
         end
     end
     return nothing
@@ -172,15 +173,15 @@ function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::Sparse
     invn = one(T) / n
     rowsv = rowvals(data.X)
     xvals = nonzeros(data.X)
-    for ncol in 1:p
+    @inbounds for ncol in 1:p
         acc = zero(T)
-        @inbounds for j in nzrange(data.X, ncol)
+        for j in nzrange(data.X, ncol)
             i = rowsv[j]
             vals = xvals[j]
             σz = data.cache_σ[i]
             acc += invn * σz * (one(T) - σz) * vals^2
         end
-        @inbounds diagh[ncol] = acc
+        diagh[ncol] = acc
     end
     return nothing
 end
