@@ -68,12 +68,11 @@ function gradient!(grad::AbstractVector{T}, x::AbstractVector{T}, model::Logisti
     fill!(grad, 0.0)
     update!(model, x)
     if model.fit_intercept
+        gradient!(grad, x, model.data, true)
         p = nfeatures(model)
         g = @view grad[1:p]
         w = @view x[1:p]
-        gradient!(g, w, model.data)
         gradient!(g, w, model.penalty)
-        grad[end] = gradient_intercept(x, model.data)
     else
         gradient!(grad, x, model.data)
         gradient!(grad, x, model.penalty)
@@ -87,8 +86,25 @@ function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, model::Logistic
     # Reset hessian
     fill!(hess, 0.0)
     update!(model, x)
-    hessian!(hess, x, model.data)
-    hessian!(hess, x, model.penalty)
+    if model.fit_intercept
+        hessian!(hess, x, model.data, true)
+        hindex = Int[]
+        p = nfeatures(model)
+        count = 1
+        for j in 1:p
+            for i in j:p
+                push!(hindex, count)
+                count += 1
+            end
+            count += 1
+        end
+        h = @view hess[hindex]
+        w = @view x[1:p]
+        hessian!(h, w, model.penalty)
+    else
+        hessian!(hess, x, model.data)
+        hessian!(hess, x, model.penalty)
+    end
 end
 
 function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::AbstractVector{T}, model::LogisticRegressor{T}) where T
@@ -99,8 +115,17 @@ function hessvec!(hessvec::AbstractVector{T}, x::AbstractVector{T}, vec::Abstrac
     fill!(hessvec, 0.0)
     # Update yₚ
     update!(model, x)
-    hessvec!(hessvec, x, vec, model.data)
-    hessvec!(hessvec, x, vec, model.penalty)
+    if model.fit_intercept
+        hessvec!(hessvec, x, vec, model.data, true)
+        p = nfeatures(model)
+        hv = @view hessvec[1:p]
+        v = @view vec[1:p]
+        w = @view x[1:p]
+        hessvec!(hv, w, v, model.penalty)
+    else
+        hessvec!(hessvec, x, vec, model.data)
+        hessvec!(hessvec, x, vec, model.penalty)
+    end
 end
 
 function diaghess!(diagh::AbstractVector{T}, x::AbstractVector{T},
@@ -108,9 +133,16 @@ function diaghess!(diagh::AbstractVector{T}, x::AbstractVector{T},
     fill!(diagh, 0.0)
     # Update yₚ
     update!(model, x)
-    diaghess!(diagh, x, model.data)
-    diaghess!(diagh, x, model.penalty)
-    return
+    if model.fit_intercept
+        diaghess!(diagh, x, model.data, true)
+        p = nfeatures(model)
+        dh = @view diagh[1:p]
+        w = @view x[1:p]
+        diaghess!(dh, w, model.penalty)
+    else
+        diaghess!(diagh, x, model.data)
+        diaghess!(diagh, x, model.penalty)
+    end
 end
 
 function generate_callbacks(model::LogisticRegressor)
