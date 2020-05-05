@@ -36,8 +36,11 @@ end
 nfeatures(dat::LogitData) = size(dat.X, 2)
 ndata(dat) = length(dat.y)
 
-function predict!(data::LogitData{T}, x::AbstractVector{T}) where T
+function predict!(data::LogitData{T}, x::AbstractVector{T}, intercept=NaN) where T
     mul!(data.y_pred, data.X, x)
+    if isfinite(intercept)
+        data.y_pred .+= intercept
+    end
     return
 end
 
@@ -64,7 +67,8 @@ Compute gradient of logistic loss for given vector parameter `ω ∈  R^p`.
 O(n * p)
 
 """
-function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T},
+                   data::LogitData{T}, fit_intercept=false) where T
     nfeats = nfeatures(data)
     n = ndata(data)
     invn = -one(T) / n
@@ -73,18 +77,11 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDa
         for i in 1:nfeats
             grad[i] += tmp * data.X[j, i]
         end
+        if fit_intercept
+            grad[end] += tmp
+        end
     end
     return nothing
-end
-
-function gradient_intercept(x::AbstractVector{T}, data::LogitData{T}) where T
-    tmp = T(0)
-    n = ndata(data)
-    invn = -one(T) / n
-    @inbounds for j in 1:n
-        tmp += data.y[j] * expit(-data.y_pred[j] * data.y[j])
-    end
-    return invn * tmp
 end
 
 """
@@ -94,7 +91,8 @@ Compute Hessian of logistic loss for given vector parameter `ω ∈  R^p`.
 O(n * p * (p-1) /2)
 
 """
-function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T},
+                  fit_intercept=false) where T
     # Sanity check
     p = nfeatures(data)
     n = ndata(data)
@@ -108,6 +106,13 @@ function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitDat
                 hess[count] += cst * data.X[i, j] * data.X[i, k]
                 count += 1
             end
+            if fit_intercept
+                hess[count] += cst * data.X[i, j]
+                count += 1
+            end
+        end
+        if fit_intercept
+            hess[count] += cst
         end
     end
     return nothing
@@ -120,17 +125,21 @@ Compute diagonal of Hessian for given vector parameter `ω ∈  R^p`.
 O(n * p)
 
 """
-function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T}) where T
+function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T},
+                   data::LogitData{T}, fit_intercept=false) where T
     # Sanity check
     n = ndata(data)
     p = nfeatures(data)
-    @assert length(ω) == length(diagh) == p
+    @assert length(ω) == length(diagh)
     invn = one(T) / n
     @inbounds for i in 1:n
         σz = expit(-data.y_pred[i] * data.y[i])
         cst = invn * σz * (one(T) - σz)
         for j in 1:p
             diagh[j] += cst * data.X[i, j] * data.X[i, j]
+        end
+        if fit_intercept
+            diagh[end] += cst
         end
     end
     return nothing
@@ -145,7 +154,7 @@ O(n x 2 x p)
 
 """
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
-                  vec::AbstractVector{T}, data::LogitData{T}) where T
+                  vec::AbstractVector{T}, data::LogitData{T}, fit_intercept=false) where T
     p = nfeatures(data)
     n = ndata(data)
     invn = one(T) / n
@@ -159,6 +168,13 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
         pσ = cst * acc
         for j in 1:p
             hessvec[j] += pσ * data.X[i, j]
+        end
+
+        if fit_intercept
+            for j in 1:p
+                hessvec[j] += cst * data.X[i, j] * vec[end]
+            end
+            hessvec[end] += pσ + cst * vec[end]
         end
     end
     return nothing
