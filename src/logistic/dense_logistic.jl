@@ -36,8 +36,11 @@ end
 nfeatures(dat::LogitData) = size(dat.X, 2)
 ndata(dat) = length(dat.y)
 
-function predict!(data::LogitData{T}, x::AbstractVector{T}) where T
+function predict!(data::LogitData{T}, x::AbstractVector{T}, intercept=NaN) where T
     mul!(data.y_pred, data.X, x)
+    if isfinite(intercept)
+        data.y_pred .+= intercept
+    end
     return
 end
 

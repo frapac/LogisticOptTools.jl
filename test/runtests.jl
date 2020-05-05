@@ -111,6 +111,25 @@ end
         end
     end
 
+    @testset "Intercept" begin
+        data = LOT.LogitData(SVM_DATASET)
+        # +1 accounts for intercept
+        p = LOT.nfeatures(data) + 1
+        # Initial point
+        x0 = zeros(p)
+        # vector for hess-vec product
+        vec = zeros(p)
+        # Allocate vectors for gradient, Hessian and diag-Hessian
+        g = zeros(p)
+        hess = zeros(div(p * (p+1), 2))
+        diagh = zeros(p)
+        fit_intercept = true
+        LOT.gradient!(g, x0, data, fit_intercept)
+        LOT.hessvec!(g, x0, vec, data, fit_intercept)
+        LOT.diaghess!(diagh, x0, data, fit_intercept)
+        LOT.hessian!(hess, x0, data, fit_intercept)
+    end
+
     @testset "Penalty" begin
         # Penalty parameter
         p = size(X, 2)
@@ -161,6 +180,7 @@ end
             @test Optim.converged(res_joptim)
         end
         # Intercept
+        solution_intercept = 0.47099308415704666
         for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
             data = glm(X, y)
             p = LOT.nfeatures(data)
@@ -169,9 +189,8 @@ end
             f, g!, _, _ = LOT.generate_callbacks(logreg)
             x0 = zeros(p + 1)
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
-            #= @test res_joptim.minimum ≈ solution =#
-            # TODO: broken test for sparse data
-            #= @test Optim.converged(res_joptim) =#
+            @test res_joptim.minimum ≈ solution_intercept
+            @test Optim.converged(res_joptim)
         end
     end
 end

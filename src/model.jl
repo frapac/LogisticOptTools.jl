@@ -40,8 +40,7 @@ function update!(model::LogisticRegressor, x)
     if new_hash != model.hash_x
         nfeat = nfeatures(model)
         if model.fit_intercept
-            predict!(model.data, @view x[1:nfeat])
-            model.data.y_pred .+= x[end]
+            predict!(model.data, view(x, 1:nfeat), x[end])
         else
             predict!(model.data, x)
         end
@@ -90,6 +89,7 @@ function hessian!(hess::AbstractVector{T}, x::AbstractVector{T}, model::Logistic
         hessian!(hess, x, model.data, true)
         hindex = Int[]
         p = nfeatures(model)
+        # TODO: remove computation of hindex here.
         count = 1
         for j in 1:p
             for i in j:p

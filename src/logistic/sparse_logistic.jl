@@ -29,8 +29,11 @@ end
 ndata(dat::SparseLogitData) = length(dat.y)
 nfeatures(data::SparseLogitData) = size(data.X, 2)
 
-function predict!(data::SparseLogitData{T}, x::AbstractVector{T}) where T
+function predict!(data::SparseLogitData{T}, x::AbstractVector{T}, intercept=NaN) where T
     mul!(data.y_pred, data.X, x)
+    if isfinite(intercept)
+        data.y_pred .+= intercept
+    end
     # Update σ
     @inbounds for j in 1:ndata(data)
         data.cache_σ[j] = expit(-data.y_pred[j] * data.y[j])
@@ -70,12 +73,12 @@ function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T},
     xvals = SparseArrays.nonzeros(data.X)
     @inbounds for ncol in 1:nfeatures(data)
         acc = zero(T)
-        @simd for j ∈  SparseArrays.nzrange(data.X, ncol)
+        for j ∈  SparseArrays.nzrange(data.X, ncol)
             i = rowsv[j]
             vals = xvals[j]
             acc += invn * data.y[i] * data.cache_σ[i] * vals
         end
-        grad[ncol] = acc
+        grad[ncol] += acc
     end
 
     if fit_intercept
@@ -137,7 +140,7 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
     if fit_intercept
         # TODO: simplify computation of Hv for intercept
         @inbounds for ncol in 1:p
-            for j in nzrange(data.X, ncol)
+            @simd for j in nzrange(data.X, ncol)
                 i = rowsv[j]
                 vals = xvals[j]
                 σz = data.cache_σ[i]
@@ -145,12 +148,11 @@ function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                 hessvec[ncol] += cst * vals * vec[end]
             end
         end
-        sumcst = T(0)
         @inbounds for i in 1:n
             σz = data.cache_σ[i]
-            sumcst += invn * σz * (T(1) - σz)
+            cst = invn * σz * (T(1) - σz)
+            hessvec[end] += acc[i] + cst * vec[end]
         end
-        hessvec[end] += sum(acc) + sumcst * vec[end]
     end
     return nothing
 end
