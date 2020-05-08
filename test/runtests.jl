@@ -216,7 +216,20 @@ end
     end
 end
 
-@testset "Dual model" begin
+@testset "Test optimization of L2 penalty" begin
+    dataset = LOT.LogitData(SVM_DATASET, scale_data=true)
+    kfold = 5
+    shuffle = false
+    inner_algo = LBFGS()
+    outer_algo = BFGS()
+    penopt = LOT.L2PenaltyOptimizer(kfold, shuffle, false,
+                                    outer_algo, inner_algo, options)
+    l♯, γ♯ = LOT.fit!(penopt, dataset.X, dataset.y, 1.0)
+    @test l♯ ≈ 0.5536870145713175
+    @test γ♯ ≈ 0.015463419098934016
+end
+
+@testset "Test dual model" begin
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
     X = LOT.to_dense(svm_data)
     y = svm_data.labels

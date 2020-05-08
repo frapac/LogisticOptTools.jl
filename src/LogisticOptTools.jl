@@ -1,6 +1,6 @@
 module LogisticOptTools
 
-using LinearAlgebra, Statistics, SparseArrays
+using LinearAlgebra, Statistics, SparseArrays, Random
 using Optim
 
 include("utils.jl")
