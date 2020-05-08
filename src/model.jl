@@ -1,5 +1,5 @@
 # Model object
-abstract type AbstractModel end
+abstract type AbstractRegression end
 
 ##################################################
 # PRIMAL
@@ -8,7 +8,7 @@ const NULL_HASH = UInt64(0)
 
 # define logistic problem
 # TODO: add inheritance from MMI.Probabilistic
-mutable struct LogisticRegressor{T <: Real} <: AbstractModel
+mutable struct LogisticRegressor{T <: Real} <: AbstractRegression
     data::AbstractDataset{T}
     # Penalty to apply (L0, L1 or L2)
     penalty::AbstractPenalty
@@ -158,7 +158,7 @@ end
 ##################################################
 # Define dual model
 # Currently, it suports only L2 penalty
-mutable struct DualLogisticRegressor{T <: Real} <: AbstractModel
+mutable struct DualLogisticRegressor{T <: Real} <: AbstractRegression
     data::AbstractDataset{T}
     penalty::L2Penalty
     hash_λ::UInt64

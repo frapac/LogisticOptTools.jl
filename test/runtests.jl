@@ -178,7 +178,12 @@ end
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
             @test res_joptim.minimum ≈ solution
             @test Optim.converged(res_joptim)
+            # Test dedicated shortcut function
+            res_joptim = Optim.optimize(logreg, x0, algo, options)
+            @test res_joptim.minimum ≈ solution
+            @test Optim.converged(res_joptim)
         end
+
         # Intercept
         solution_intercept = 0.47099308415704666
         for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
@@ -191,6 +196,22 @@ end
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
             @test res_joptim.minimum ≈ solution_intercept
             @test Optim.converged(res_joptim)
+            # Test dedicated shortcut function
+            res_joptim = Optim.optimize(logreg, x0, algo, options)
+            @test res_joptim.minimum ≈ solution_intercept
+            @test Optim.converged(res_joptim)
+        end
+
+        @testset "LogisticOptimizer utilities" begin
+            # Test fit! function
+            for (bias, sol) in zip([false, true], [solution, solution_intercept])
+                logopt = LOT.LogisticOptimizer(algo=algo, options=options,
+                                               fit_intercept=bias)
+                p = size(X, 2) + bias
+                res = LOT.fit!(logopt, X1, y, zeros(p))
+                @test Optim.converged(res)
+                @test res.minimum ≈ sol
+            end
         end
     end
 end

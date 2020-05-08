@@ -16,5 +16,6 @@ include("logistic/sparse_logistic.jl")
 include("logistic/dual_logistic.jl")
 
 include("model.jl")
+include("optim.jl")
 
 end # module
