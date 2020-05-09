@@ -49,7 +49,7 @@ LogisticOptTools could use the different algorithms implemented in Optim.jl.
 We depict in the following figure a comparison of three algorithms, when
 fitting a logistic model on the `covtype` dataset (581,012 data, 54 features).
 
-![benchmark](https://github.com/frapac/LogisticOptTools.jl/examples/iter_g.png)
+![benchmark](https://github.com/frapac/LogisticOptTools.jl/blob/register/examples/iter_g.png)
 
 For an example on how to use other solvers, we have implemented
 in `examples/tron.jl` a resolution of a logistic regression problem
