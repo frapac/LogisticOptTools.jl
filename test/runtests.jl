@@ -178,7 +178,12 @@ end
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
             @test res_joptim.minimum ≈ solution
             @test Optim.converged(res_joptim)
+            # Test dedicated shortcut function
+            res_joptim = Optim.optimize(logreg, x0, algo, options)
+            @test res_joptim.minimum ≈ solution
+            @test Optim.converged(res_joptim)
         end
+
         # Intercept
         solution_intercept = 0.47099308415704666
         for (X, glm) in zip([X1, X2], [LOT.LogitData, LOT.SparseLogitData])
@@ -191,11 +196,41 @@ end
             res_joptim = Optim.optimize(f, g!, x0, algo, options)
             @test res_joptim.minimum ≈ solution_intercept
             @test Optim.converged(res_joptim)
+            # Test dedicated shortcut function
+            res_joptim = Optim.optimize(logreg, x0, algo, options)
+            @test res_joptim.minimum ≈ solution_intercept
+            @test Optim.converged(res_joptim)
+        end
+
+        @testset "LogisticOptimizer utilities" begin
+            # Test fit! function
+            for (bias, sol) in zip([false, true], [solution, solution_intercept])
+                logopt = LOT.LogisticOptimizer(algo=algo, options=options,
+                                               fit_intercept=bias)
+                p = size(X, 2) + bias
+                res = LOT.fit!(logopt, X1, y, zeros(p))
+                @test Optim.converged(res)
+                @test res.minimum ≈ sol
+            end
         end
     end
 end
 
-@testset "Dual model" begin
+@testset "Test optimization of L2 penalty" begin
+    dataset = LOT.LogitData(SVM_DATASET, scale_data=true)
+    kfold = 5
+    shuffle = false
+    inner_algo = LBFGS()
+    outer_algo = BFGS()
+    options = Optim.Options()
+    penopt = LOT.L2PenaltyOptimizer(kfold, shuffle, false,
+                                    outer_algo, inner_algo, options)
+    l♯, γ♯ = LOT.fit!(penopt, dataset.X, dataset.y, 1.0)
+    @test l♯ ≈ 0.5536870145713175 atol=1e-4
+    @test γ♯ ≈ 0.015463419098934016 atol=1e-4
+end
+
+@testset "Test dual model" begin
     svm_data = LOT.parse_libsvm(SVM_DATASET, Float64)
     X = LOT.to_dense(svm_data)
     y = svm_data.labels

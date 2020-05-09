@@ -34,7 +34,7 @@ function LogitData(libsmv_file::String; scale_data=false)
 end
 
 nfeatures(dat::LogitData) = size(dat.X, 2)
-ndata(dat) = length(dat.y)
+ndata(dat::LogitData) = length(dat.y)
 
 function predict!(data::LogitData{T}, x::AbstractVector{T}, intercept=NaN) where T
     mul!(data.y_pred, data.X, x)
@@ -68,7 +68,7 @@ O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T},
-                   data::LogitData{T}, fit_intercept=false) where T
+                   data::LogitData{T}, fit_intercept::Bool=false) where T
     nfeats = nfeatures(data)
     n = ndata(data)
     invn = -one(T) / n
@@ -92,7 +92,7 @@ O(n * p * (p-1) /2)
 
 """
 function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T}, data::LogitData{T},
-                  fit_intercept=false) where T
+                  fit_intercept::Bool=false) where T
     # Sanity check
     p = nfeatures(data)
     n = ndata(data)
@@ -126,7 +126,7 @@ O(n * p)
 
 """
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T},
-                   data::LogitData{T}, fit_intercept=false) where T
+                   data::LogitData{T}, fit_intercept::Bool=false) where T
     # Sanity check
     n = ndata(data)
     p = nfeatures(data)
@@ -154,7 +154,7 @@ O(n x 2 x p)
 
 """
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
-                  vec::AbstractVector{T}, data::LogitData{T}, fit_intercept=false) where T
+                  vec::AbstractVector{T}, data::LogitData{T}, fit_intercept::Bool=false) where T
     p = nfeatures(data)
     n = ndata(data)
     invn = one(T) / n

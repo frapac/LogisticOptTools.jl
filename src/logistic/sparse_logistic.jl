@@ -65,7 +65,7 @@ O(n * p)
 
 """
 function gradient!(grad::AbstractVector{T}, ω::AbstractVector{T},
-                   data::SparseLogitData{T}, fit_intercept=false) where T
+                   data::SparseLogitData{T}, fit_intercept::Bool=false) where T
     # Sanity check
     @assert length(ω) == length(grad) == (nfeatures(data) + fit_intercept)
     invn = -one(T) / ndata(data)
@@ -98,7 +98,7 @@ O(n * p * (p-1) /2)
 
 """
 function hessian!(hess::AbstractVector{T}, ω::AbstractVector{T},
-                  data::SparseLogitData{T}, fit_intercept=false) where T
+                  data::SparseLogitData{T}, fit_intercept::Bool=false) where T
     error("Currently  not implemented")
 end
 
@@ -112,7 +112,7 @@ O(n * 2 * p)
 """
 function hessvec!(hessvec::AbstractVector{T}, ω::AbstractVector{T},
                   vec::AbstractVector{T}, data::SparseLogitData{T},
-                  fit_intercept=false) where T
+                  fit_intercept::Bool=false) where T
     p = nfeatures(data)
     n = ndata(data)
     @assert length(ω) == length(vec) == length(hessvec) == (p + fit_intercept)
@@ -165,7 +165,7 @@ O(n * p)
 
 """
 function diaghess!(diagh::AbstractVector{T}, ω::AbstractVector{T},
-                   data::SparseLogitData{T}, fit_intercept=false) where T
+                   data::SparseLogitData{T}, fit_intercept::Bool=false) where T
     # Sanity check
     n = ndata(data)
     p = nfeatures(data)

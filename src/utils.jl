@@ -1,6 +1,6 @@
 
 # Numerically stable expit
-function expit(t::T) where T
+@inline function expit(t::T) where T
     if t >= 0.0
         return one(T) / (one(T) + exp(-t))
     else
@@ -11,7 +11,7 @@ end
 
 # A numerically robust function to evaluate -log(1 + exp(-t))
 # See: http://fa.bianp.net/blog/2019/evaluate_logistic/
-function log1pexp(t::T) where T
+@inline function log1pexp(t::T)::T where T
     if t < -33.3
         return t
     elseif t <= -18.0
@@ -26,7 +26,7 @@ end
 "Compute Fenchel transform of f(x) = log(1 + exp(-x))."
 function logloss(λ::T) where T <: Real
     # TODO: numerically robust version
-    if λ ∈ [0.0, -1.0]
+    if λ == 0.0 || λ == -1.0
         return 0.0
     elseif -1.0 < λ < 0.0
         return (1.0 + λ) * log(1.0 + λ) - λ * log(-λ)
@@ -64,9 +64,25 @@ function scale!(::NormalScaler, X::Array{T, 2}) where T
     end
 end
 
+function scale!(::NormalScaler, X::AbstractSparseMatrix{T, Int}) where T
+    n, d = size(X)
+    σ = std(X, dims=1)
+    @inbounds for i in 1:d
+        X[:, i] ./= σ[i]
+    end
+end
+
 """
-Format labels [y_1, ..., y_n] to ensure that y_i ∈ { -1, 1}
+Format labels `y = [y_1, ..., y_n]` to ensure that `y_i ∈ { -1, 1}`
 for all index i.
+
+# Examples
+
+```julia
+    y = [-2.0, 1.0, -1.0, 2.0]
+    format_label!(y)
+
+```
 """
 function format_label!(y::AbstractVector)
     set_reference = [-1.0, 1.0]
@@ -82,4 +98,15 @@ function format_label!(y::AbstractVector)
         end
     end
     return nothing
+end
+
+# Return upper index (ordered by rows) of a pxp triangular matrix
+function triul(p)
+    index = Int[]
+    for i in 1:p
+        for j in i:p
+            push!(index, i + (j - 1) * p)
+        end
+    end
+    return index
 end
