@@ -222,11 +222,12 @@ end
     shuffle = false
     inner_algo = LBFGS()
     outer_algo = BFGS()
+    options = Optim.Options()
     penopt = LOT.L2PenaltyOptimizer(kfold, shuffle, false,
                                     outer_algo, inner_algo, options)
     l♯, γ♯ = LOT.fit!(penopt, dataset.X, dataset.y, 1.0)
-    @test l♯ ≈ 0.5536870145713175
-    @test γ♯ ≈ 0.015463419098934016
+    @test l♯ ≈ 0.5536870145713175 atol=1e-4
+    @test γ♯ ≈ 0.015463419098934016 atol=1e-4
 end
 
 @testset "Test dual model" begin
