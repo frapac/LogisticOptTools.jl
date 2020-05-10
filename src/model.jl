@@ -1,3 +1,4 @@
+import Base: length
 # Model object
 abstract type AbstractRegression end
 
@@ -33,6 +34,7 @@ function LogisticRegressor(X::AbstractArray{T, 2}, y::AbstractVector{T};
 end
 
 nfeatures(model::LogisticRegressor) = nfeatures(model.data)
+length(model::LogisticRegressor) = nfeatures(model.data) + model.fit_intercept
 
 function update!(model::LogisticRegressor, x)
     new_hash = hash(x)

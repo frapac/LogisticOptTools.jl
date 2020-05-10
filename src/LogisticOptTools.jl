@@ -18,5 +18,6 @@ include("logistic/dual_logistic.jl")
 
 include("model.jl")
 include("optim.jl")
+include("moi_formulations.jl")
 
 end # module
