@@ -88,6 +88,15 @@ function _linearize_penalty!(model::MOI.ModelLike,
     MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), objf)
 end
 
+function _conic_l2_penalty!(model::MOI.ModelLike,
+                            parameters::Vector{MOI.VariableIndex},
+                            logreg::LogisticRegressor)
+    reg = MOI.add_variables(model, 1)
+    vov = MOI.VectorOfVariables([reg; parameters])
+    d = length(vov)
+    MOI.add_constraint(model, vov, MOI.SecondOrderCone(d))
+end
+
 function nlp_model(model::MOI.ModelLike, evaluator, logreg::LogisticRegressor)
     MOI.empty!(model)
     @assert MOI.supports(model, MOI.NLPBlock())
@@ -118,14 +127,15 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
     y = logreg.data.y
 
     n = ndata(logreg.data)
+    p = nfeatures(logreg.data)
     nvariables = length(logreg)
     # add variables
     start = zeros(nvariables)
     w = MOI.add_variables(model, nvariables)
-    t = MOI.add_variables(model, nvariables)
+    t = MOI.add_variables(model, n)
 
     for j in 1:nvariables
-        MOI.set(model, MOI.VariablePrimalStart(), v[j], start[j])
+        MOI.set(model, MOI.VariablePrimalStart(), w[j], start[j])
     end
 
     for i in 1:n
@@ -153,8 +163,8 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
             end
         end
 
-        constants = [0.0, 1.0, 1.0]
-        vaf = MOI.VectorAffineFunction{Float64}(vat, constants)
+        constants = [0.0, 1.0, 0.0]
+        vaf = MOI.VectorAffineFunction{Float64}(terms, constants)
         vc = MOI.add_constraint(model, vaf, MOI.ExponentialCone())
 
         # (z2, 1, - t ) ∈  K_exp
@@ -163,16 +173,18 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
         push!(terms, vat)
         vat  = MOI.VectorAffineTerm{Float64}(1, MOI.ScalarAffineTerm{Float64}(-1.0, t[i]))
         push!(terms, vat)
-        constants = [0.0, 1.0, 1.0]
-        vaf = MOI.VectorAffineFunction{Float64}(vat, constants)
+        constants = [0.0, 1.0, 0.0]
+        vaf = MOI.VectorAffineFunction{Float64}(terms, constants)
         vc = MOI.add_constraint(model, vaf, MOI.ExponentialCone())
     end
 
-    # add penalty
-    #
     # add objective
-    ocoefs = fill(1.0 / n, nvariables)
+    ocoefs = fill(1.0 / n, n)
     objf = MOI.ScalarAffineFunction{Float64}(MOI.ScalarAffineTerm{Float64}.(ocoefs, t), 0.0)
+    # add penalty
+    #= if isa(logreg.penalty, L2Penalty) =#
+    #=     reg = _conic_l2_penalty(model, w, logreg) =#
+    #= end =#
     MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), objf)
 end
 
