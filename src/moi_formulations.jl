@@ -88,13 +88,15 @@ function _linearize_penalty!(model::MOI.ModelLike,
     MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), objf)
 end
 
-function _conic_l2_penalty!(model::MOI.ModelLike,
-                            parameters::Vector{MOI.VariableIndex},
-                            logreg::LogisticRegressor)
+function _conic_penalty!(model::MOI.ModelLike,
+                         parameters::Vector{MOI.VariableIndex},
+                         MOIPenalty,
+                         logreg::LogisticRegressor)
     reg = MOI.add_variables(model, 1)
     vov = MOI.VectorOfVariables([reg; parameters])
-    d = length(vov)
-    MOI.add_constraint(model, vov, MOI.SecondOrderCone(d))
+    d = length(parameters) + 1
+    MOI.add_constraint(model, vov, MOIPenalty(d))
+    return reg
 end
 
 function nlp_model(model::MOI.ModelLike, evaluator, logreg::LogisticRegressor)
@@ -180,11 +182,18 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
 
     # add objective
     ocoefs = fill(1.0 / n, n)
-    objf = MOI.ScalarAffineFunction{Float64}(MOI.ScalarAffineTerm{Float64}.(ocoefs, t), 0.0)
     # add penalty
-    #= if isa(logreg.penalty, L2Penalty) =#
-    #=     reg = _conic_l2_penalty(model, w, logreg) =#
-    #= end =#
+    if isa(logreg.penalty, L2Penalty)
+        reg = _conic_penalty!(model, w, MOI.SecondOrderCone, logreg)
+        push!(ocoefs, logreg.penalty.constant)
+        vars = [t; reg]
+        objf = MOI.ScalarAffineFunction{Float64}(MOI.ScalarAffineTerm{Float64}.(ocoefs, vars), 0.0)
+    elseif isa(logreg.penalty, AbstractL1Penalty)
+        reg = _conic_penalty!(model, w, MOI.NormOneCone, logreg)
+        push!(ocoefs, logreg.penalty.constant)
+        vars = [t; reg]
+        objf = MOI.ScalarAffineFunction{Float64}(MOI.ScalarAffineTerm{Float64}.(ocoefs, vars), 0.0)
+    end
     MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(), objf)
 end
 
