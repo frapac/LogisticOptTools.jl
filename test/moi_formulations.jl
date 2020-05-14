@@ -3,6 +3,8 @@ using Ipopt, ECOS
 using MathOptInterface
 
 const MOI = MathOptInterface
+const MOIU = MOI.Utilities
+const MOIB = MOI.Bridges
 
 function fit_nlp(constructor, logreg; hessian=false, hessvec=false)
     opt = constructor()
@@ -11,7 +13,7 @@ function fit_nlp(constructor, logreg; hessian=false, hessvec=false)
     LOT.load!(LOT.NonLinearFormulation(), opt, evaluator, logreg)
     MOI.optimize!(opt)
     obj = MOI.get(opt, MOI.ObjectiveValue())
-    rc = MOI.get(model, MOI.TerminationStatus())
+    rc = MOI.get(opt, MOI.TerminationStatus())
     MOI.empty!(opt)
     return rc, obj
 end
@@ -25,7 +27,7 @@ function fit_conic(constructor, logreg)
     LOT.load!(LOT.ConicFormulation(), bridged, logreg)
     MOI.optimize!(bridged)
     obj = MOI.get(opt, MOI.ObjectiveValue())
-    rc = MOI.get(model, MOI.TerminationStatus())
+    rc = MOI.get(opt, MOI.TerminationStatus())
     MOI.empty!(opt)
     return rc, obj
 end
@@ -42,13 +44,13 @@ end
                                        fit_intercept=false)
         for activate_hessian in [false, true]
             rc, obj = fit_nlp(Ipopt.Optimizer, logreg, hessian=activate_hessian)
-            @test rc == MOI.OPTIMAL
+            @test rc == MOI.LOCALLY_SOLVED
             @test obj ≈ obj_nopenalty
         end
         logreg.penalty = LOT.L2Penalty(1e-2)
         for activate_hessian in [false, true]
             rc, obj = fit_nlp(Ipopt.Optimizer, logreg, hessian=activate_hessian)
-            @test rc == MOI.OPTIMAL
+            @test rc == MOI.LOCALLY_SOLVED
             @test obj ≈ obj_l2penalty
         end
     end

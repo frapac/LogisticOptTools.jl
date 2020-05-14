@@ -2,6 +2,11 @@
 using MathOptInterface
 const MOI = MathOptInterface
 
+abstract type MOIFormulation end
+
+struct NonLinearFormulation <: MOIFormulation end
+struct ConicFormulation <: MOIFormulation end
+
 struct LogisticEvaluator <: MOI.AbstractNLPEvaluator
     logreg::AbstractRegression
     enable_hessian::Bool
@@ -99,7 +104,8 @@ function _conic_penalty!(model::MOI.ModelLike,
     return reg
 end
 
-function nlp_model(model::MOI.ModelLike, evaluator, logreg::LogisticRegressor)
+function load!(::NonLinearFormulation, model::MOI.ModelLike,
+               evaluator, logreg::LogisticRegressor)
     MOI.empty!(model)
     @assert MOI.supports(model, MOI.NLPBlock())
 
@@ -115,13 +121,15 @@ function nlp_model(model::MOI.ModelLike, evaluator, logreg::LogisticRegressor)
     MOI.set(model, MOI.NLPBlock(), block_data)
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
 
-    if isa(logreg.penalty, LinearizedL1Penalty)
+    # For NLP solver, L2 penalty is directly formulated in
+    # the callbacks
+    if isa(logreg.penalty, AbstractL1Penalty)
         _linearize_penalty!(model, w, logreg)
     end
     return w
 end
 
-function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
+function load!(::ConicFormulation, model::MOI.ModelLike, logreg::LogisticRegressor)
     MOI.empty!(model)
     @assert MOI.supports_constraint(model, MOI.VectorAffineFunction{Float64}, MOI.ExponentialCone)
 
@@ -136,6 +144,7 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
     w = MOI.add_variables(model, nvariables)
     t = MOI.add_variables(model, n)
 
+    # Be careful! Not all conic solvers support warm-start (e.g. ECOS)
     for j in 1:nvariables
         MOI.set(model, MOI.VariablePrimalStart(), w[j], start[j])
     end
@@ -158,7 +167,7 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
         push!(terms, vat)
         for j in eachindex(X[i, :])
             x_ij = X[i, j]
-            if x_ij != 0.0
+            if !iszero(x_ij)
                 x_ij *= y[i]
                 vat  = MOI.VectorAffineTerm{Float64}(1, MOI.ScalarAffineTerm{Float64}(x_ij, w[j]))
                 push!(terms, vat)
@@ -169,7 +178,7 @@ function conic_model(model::MOI.ModelLike, logreg::LogisticRegressor)
         vaf = MOI.VectorAffineFunction{Float64}(terms, constants)
         vc = MOI.add_constraint(model, vaf, MOI.ExponentialCone())
 
-        # (z2, 1, - t ) ∈  K_exp
+        # (z2, 1, - t) ∈  K_exp
         terms = MOI.VectorAffineTerm{Float64}[]
         vat  = MOI.VectorAffineTerm{Float64}(3, MOI.ScalarAffineTerm{Float64}(1.0, z[2]))
         push!(terms, vat)
